@@ -26,6 +26,33 @@ class Vector3 {
 
     add(vector: Vector3) { return new Vector3(this.x+vector.x, this.y+vector.y, this.z+vector.z); }
     minus(vector: Vector3) { return new Vector3(this.x-vector.x, this.y-vector.y, this.z-vector.z); }
+    dot(vector: Vector3) { return this.x*vector.x + this.y*vector.y + this.z*vector.z; }
+}
+
+class Vector4 {
+    x: number = 0;
+    y: number = 0;
+    z: number = 0;
+    w: number = 0;
+
+    constructor(x?: number, y?: number, z?: number, w?: number) {
+        this.x = x === undefined ? this.x : x;
+        this.y = y === undefined ? this.y : y;
+        this.z = z === undefined ? this.z : z;
+        this.w = w === undefined ? this.w : w;
+    }
+
+    add(vector: Vector4) { return new Vector4(this.x+vector.x, this.y+vector.y, this.z+vector.z, this.w+vector.w); }
+    minus(vector: Vector4) { return new Vector4(this.x-vector.x, this.y-vector.y, this.z-vector.z, this.w+vector.w); }
+    // Row major
+    matrixMult(matrix: Array<Array<number>>) {
+        return new Vector4(
+            this.x*matrix[0][0] + this.x*matrix[0][1] + this.x*matrix[0][2] + this.x*matrix[0][3],
+            this.y*matrix[1][0] + this.y*matrix[1][1] + this.y*matrix[1][2] + this.y*matrix[1][3],
+            this.z*matrix[2][0] + this.z*matrix[2][1] + this.z*matrix[2][2] + this.z*matrix[2][3],
+            this.w*matrix[3][0] + this.w*matrix[3][1] + this.w*matrix[3][2] + this.w*matrix[3][3],
+        );
+    }
 }
 
 class RGB {
@@ -66,6 +93,7 @@ class Object3D {
     // Only used if a custom mesh is given
     constructor(position?: Vector3, triangles?: Array<Triangle>) {
         this.position = position === undefined ? this.position : position;
+        this.triangles = triangles === undefined ? this.triangles : triangles;
     }
 
     // Position is at bottom right corner
@@ -91,22 +119,39 @@ class Object3D {
 class Camera {
     // State
     position: Vector3 = new Vector3(0, 0, 0);
-    view_angle: Vector2 = new Vector2(0, 90); // (x, y) axis angle
+    view_angle: Vector2 = new Vector2(0, 90); // (yaw, pitch) in degrees
 
     // Default settings
     near: number = 0.1;
     far: number = 4000;
     fov: number = 90;
-    vert_clamp: Vector2 = new Vector2(0, 180) // Lower and upper vertical clamps
+    pitch_clamp: Vector2 = new Vector2(-90, 90) // Lower and upper vertical clamps on
 
-    constructor(position?: Vector3, view_angle?: Vector2, near?: number, far?: number, fov?: number, vert_clamp?: Vector2) {
+    // Perspective projection matrix
+    projection_matrix = Array(4).fill(Array(4).fill(0)); // 4x4 matrix
+
+    constructor(position?: Vector3, view_angle?: Vector2, near?: number, far?: number, fov?: number, pitch_clamp?: Vector2) {
         this.position = position === undefined ? this.position : position;
         this.view_angle = view_angle === undefined ? this.view_angle : view_angle;
 
         this.near = near === undefined ? this.near : near;
         this.far = far === undefined ? this.far : far;
         this.fov = fov === undefined ? this.fov : fov;
-        this.vert_clamp = vert_clamp === undefined ? this.vert_clamp : vert_clamp;
+        this.pitch_clamp = pitch_clamp === undefined ? this.pitch_clamp : pitch_clamp;
+
+        this.#makePerspectiveProjectionMatrix()
+    }
+
+    // The projection matrix is apart of the camera class because
+    // each projection matrix is individual to a camera's
+    // settings and need to instantiated for each camera in order
+    // for rendering to function properly.
+    #makePerspectiveProjectionMatrix() {
+        this.projection_matrix[0][0] = ASPECT_RATIO * (1/Math.tan(this.fov/2));
+        this.projection_matrix[1][1] = (1/Math.tan(this.fov/2));
+        this.projection_matrix[2][2] = this.far/(this.far-this.near);
+        this.projection_matrix[2][3] = (-this.far*this.near)/(this.far-this.near)
+        this.projection_matrix[3][3] = 1.0;
     }
 
     rotate(rotation: Vector2) {
@@ -115,7 +160,7 @@ class Camera {
         if (this.view_angle.x >= 360 || this.view_angle.x < 0) {
             this.view_angle.x = this.view_angle.x % 360;
         }
-        this.view_angle.y = clamp(this.view_angle.y, this.vert_clamp.x, this.vert_clamp.y);
+        this.view_angle.y = clamp(this.view_angle.y, this.pitch_clamp.x, this.pitch_clamp.y);
     }
 
     translate(vector: Vector3) { this.position = this.position.add(vector) }
@@ -131,17 +176,7 @@ function clamp(x: number, min: number, max: number) {
 // - Rendering - //
 
 // Notes //
-// Directionality: y-up, right-handed
-
-let world_objects: Array<Object3D> = [];
-
-function makePerspectiveProjectionMatrix(camera: Camera) {
-    perspective_projection_matrix[0][0] = ASPECT_RATIO * (1/Math.tan(camera.fov/2));
-    perspective_projection_matrix[1][1] = (1/Math.tan(camera.fov/2));
-    perspective_projection_matrix[2][2] = camera.far/(camera.far-camera.near);
-    perspective_projection_matrix[2][3] = (-camera.far*camera.near)/(camera.far-camera.near)
-    perspective_projection_matrix[3][3] = 1.0;
-}
+// Directionality: y-up, right-handed (https://pbs.twimg.com/media/EmVSW5AW8AAoDD9.jpg:large)
 
 function unpackObjects(objects: Array<Object3D>) : Array<Triangle> {
     let triangles = [];
@@ -156,33 +191,87 @@ function unpackObjects(objects: Array<Object3D>) : Array<Triangle> {
     return triangles
 }
 
-function mapTrianglesToScreenSpace(unmapped_triangles: Array<Triangle>) : Array<Triangle> {
-    let mapped_triangles = []
-    
+function makeViewMatrix(camera: Camera) : Array<Array<number>> {
+    let cos_pitch = Math.cos(camera.view_angle.y*(Math.PI/180));
+    let sin_pitch = Math.cos(camera.view_angle.y*(Math.PI/180));
+    let cos_yaw = Math.cos(camera.view_angle.x*(Math.PI/180));
+    let sin_yaw = Math.cos(camera.view_angle.x*(Math.PI/180));
+
+    let x_axis = new Vector3(cos_yaw, 0, -sin_yaw);
+    let y_axis = new Vector3(sin_yaw*sin_pitch, cos_pitch, cos_yaw*sin_pitch)
+    let z_axis = new Vector3(sin_yaw*cos_pitch, -sin_pitch, cos_yaw*cos_pitch)
+
+    // Create a 4x4 view matrix from the right, up, forward and eye position vectors
+    let view_matrix = [
+        [x_axis.x, y_axis.x, z_axis.x, 0],
+        [x_axis.y, y_axis.y, z_axis.y, 0],
+        [x_axis.z, y_axis.z, z_axis.z, 0],
+        [-camera.position.dot(x_axis), -camera.position.dot(y_axis), -camera.position.dot(z_axis), 1]
+    ]
+
+    return view_matrix
+}
+
+function trianglesToClipSpace(camera: Camera, view_matrix: Array<Array<number>>, unmapped_triangles: Array<Triangle>) : Array<Triangle> {
     for (let tri=0; tri<unmapped_triangles.length; tri++) {
-        unmapped_triangles[tri].vert_1 = worldSpaceToScreenSpace(unmapped_triangles[tri].vert_1);
-        unmapped_triangles[tri].vert_2 = worldSpaceToScreenSpace(unmapped_triangles[tri].vert_2);
-        unmapped_triangles[tri].vert_3 = worldSpaceToScreenSpace(unmapped_triangles[tri].vert_3);
-        mapped_triangles.push(unmapped_triangles[tri]);
+        unmapped_triangles[tri].vert_1 = worldToScreenSpace(camera, view_matrix, unmapped_triangles[tri].vert_1);
+        unmapped_triangles[tri].vert_2 = worldToScreenSpace(camera, view_matrix, unmapped_triangles[tri].vert_2);
+        unmapped_triangles[tri].vert_3 = worldToScreenSpace(camera, view_matrix, unmapped_triangles[tri].vert_3);
     }
 
-    return mapped_triangles
+    return unmapped_triangles
 }
 
-// TODO: I understand the matrix, but not how to integrate camera position and rotation
-function worldSpaceToScreenSpace(vector: Vector3) : Vector3 {
-    return new Vector3(0, 0, 0)
+function worldToScreenSpace(camera: Camera, view_matrix: Array<Array<number>>, vector: Vector3) : Vector3 {
+    let vec_4 = new Vector4(vector.x, vector.y, vector.z, 1)
+    console.log("Input "+JSON.stringify(vec_4));
+
+    // World space to view space
+    vec_4 = vec_4.matrixMult(view_matrix);
+    console.log("View "+JSON.stringify(vec_4));
+    // TODO: View Matrix incorrect
+
+    // View space to clip space
+    vec_4 = vec_4.matrixMult(camera.projection_matrix);
+    console.log("Clip "+JSON.stringify(vec_4));
+    
+    // Clip space to NDC (Normalized Device Coordinates)
+    let vec_3 = new Vector3(vec_4.x/vec_4.w, vec_4.y/vec_4.w, vec_4.z/vec_4.w);
+
+    // Adjust to canvas size
+    vec_3.x = CANVAS_SIZE.x + vec_3.x;
+    vec_3.y = CANVAS_SIZE.y + vec_3.y;
+
+    console.log("Canvas "+JSON.stringify(vec_3));
+
+    console.log("- - - - -");
+    return vec_3
 }
 
-// TODO
 function orderTriangles(triangles: Array<Triangle>) : Array<Triangle> {
-    let ordered_triangles = triangles;
+    let av_z_dists = []
+    let av_z_dist = 0;
 
-    return ordered_triangles
+    for (let tri=0; tri<triangles.length; tri++) {
+        av_z_dist = (triangles[tri].vert_1.z+triangles[tri].vert_2.z+triangles[tri].vert_2.z)/3
+        
+        if (av_z_dist >= 0) {
+            av_z_dists.push(av_z_dist);
+        }
+    }
+
+    // Sorts by average z distance (farthest to closest)
+    triangles.sort((a, b) => {  
+        return av_z_dists[triangles.indexOf(b)] - av_z_dists[triangles.indexOf(a)];
+    });
+
+    return triangles
 }
 
 function drawTriangle(triangle: Triangle) {
-    ctx.fillStyle = triangle.colour.str();
+    // TODO: Not working (str is not a function)
+    // console.log(triangle.colour.str())
+    // ctx.fillStyle = triangle.colour.str();
 
     ctx.beginPath();
 	ctx.moveTo(triangle.vert_1.x, triangle.vert_1.y);
@@ -192,10 +281,12 @@ function drawTriangle(triangle: Triangle) {
     ctx.closePath();
 }
 
-function render(objects: Array<Object3D>) {
+function render(camera: Camera, objects: Array<Object3D>) {
     let unmapped_triangles = unpackObjects(objects);
-    let mapped_triangles = mapTrianglesToScreenSpace(unmapped_triangles);
 
+    let view_matrix = makeViewMatrix(camera);
+    let mapped_triangles = trianglesToClipSpace(camera, view_matrix, unmapped_triangles);
+    
     let ordered_triangles = orderTriangles(mapped_triangles);
 
     for (let tri=0; tri<ordered_triangles.length; tri++) {
@@ -217,12 +308,12 @@ let execute = true; // When false, engine will stop running
 // Canvas
 let canvas: HTMLCanvasElement;
 let ctx: CanvasRenderingContext2D;
-const CANVAS_SIZE = new Vector2(1920, 1080);
+const CANVAS_SIZE = new Vector2(1000, 600);
 const ASPECT_RATIO = CANVAS_SIZE.y/CANVAS_SIZE.x;
 
-// Camera
+// World
+let world_objects: Array<Object3D> = [];
 let active_camera: Camera;
-let perspective_projection_matrix = Array(4).fill(Array(4).fill(0)); // 4x4 matrix
 
 function ready() {
     // Init canvas and context
@@ -238,20 +329,22 @@ function ready() {
     }
     ctx = temp_ctx;
 
-    canvas.width, canvas.height = CANVAS_SIZE.x, CANVAS_SIZE.y;
+
+    canvas.width = CANVAS_SIZE.x;
+    canvas.height = CANVAS_SIZE.y;
 
     // Init camera and projection matrix
     active_camera = new Camera();
-    makePerspectiveProjectionMatrix(active_camera) // Projection matrix must be updated to new active_camera if the active_camera changes
+    active_camera.view_angle.x = 0;
 
+    let new_tri = new Triangle(new Vector3(-100, 0, 10), new Vector3(0, 100, -50), new Vector3(100, 0, -50), new RGB(0, 0, 0));
+    let new_obj = new Object3D(new Vector3(0, 0, 0), [new_tri]);
 
-    // Pre-execution modifications
-    world_objects.push(new Object3D());
-    active_camera.view_angle.y = 90;
+    world_objects.push(new_obj)
 
     // Main loop
     while (execute) {
-        render(world_objects)
+        render(active_camera, world_objects)
         process(0)
         execute = false;
     }
