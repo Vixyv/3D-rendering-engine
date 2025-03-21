@@ -19,7 +19,6 @@ class Vector2 {
         this.x = x === undefined ? this.x : x;
         this.y = y === undefined ? this.y : y;
     }
-    toMatrix() { return [this.x, this.y]; }
     add(vector) { return new Vector2(this.x + vector.x, this.y + vector.y); }
     minus(vector) { return new Vector2(this.x - vector.x, this.y - vector.y); }
 }
@@ -32,10 +31,16 @@ class Vector3 {
         this.y = y === undefined ? this.y : y;
         this.z = z === undefined ? this.z : z;
     }
-    toMatrix() { return [this.x, this.y, this.z]; }
     add(vector) { return new Vector3(this.x + vector.x, this.y + vector.y, this.z + vector.z); }
     minus(vector) { return new Vector3(this.x - vector.x, this.y - vector.y, this.z - vector.z); }
     dot(vector) { return this.x * vector.x + this.y * vector.y + this.z * vector.z; }
+    cross(vector) {
+        return new Vector3(this.y * vector.z - this.z * vector.y, this.z * vector.x - this.x * vector.z, this.x * vector.y - this.y * vector.x);
+    }
+    normalize() {
+        let length = Math.sqrt(this.x ** 2 + this.y ** 2 + this.z ** 2);
+        return new Vector3(this.x / length, this.y / length, this.z / length);
+    }
 }
 class Vector4 {
     constructor(x, y, z, w) {
@@ -48,7 +53,6 @@ class Vector4 {
         this.z = z === undefined ? this.z : z;
         this.w = w === undefined ? this.w : w;
     }
-    toMatrix() { return [this.x, this.y, this.z, this.w]; }
     add(vector) { return new Vector4(this.x + vector.x, this.y + vector.y, this.z + vector.z, this.w + vector.w); }
     minus(vector) { return new Vector4(this.x - vector.x, this.y - vector.y, this.z - vector.z, this.w + vector.w); }
     // Row major
@@ -185,35 +189,62 @@ function trianglesToClipSpace(camera, mvp_matrix, unmapped_triangles) {
     return unmapped_triangles;
 }
 function makeMVPMatrix(camera) {
-    let mvp_matrix = matrix(4, 4);
-    // Inverse translation of the camera's position
-    let translation = [[1, 0, 0, -camera.position.x],
-        [0, 1, 0, -camera.position.y],
-        [0, 0, 1, -camera.position.z],
+    let pitch_rad = camera.view_angle.y * (Math.PI / 180);
+    let yaw_rad = camera.view_angle.x * (Math.PI / 180);
+    let cos_pitch = Math.cos(-pitch_rad);
+    let sin_pitch = Math.sin(-pitch_rad);
+    let cos_yaw = Math.cos(-yaw_rad);
+    let sin_yaw = Math.sin(-yaw_rad);
+    let rotation = [[cos_yaw, -sin_yaw * sin_pitch, sin_yaw * cos_pitch, 1],
+        [0, cos_pitch, sin_pitch, 1],
+        [-sin_yaw, -cos_yaw * sin_pitch, cos_yaw * cos_pitch, 1],
         [0, 0, 0, 1]];
-    const DEG_TO_RAD = Math.PI / 180;
-    // Degrees are negative as we want to inversely rotate the world vectors
-    let cos_pitch = Math.cos(-camera.view_angle.y * DEG_TO_RAD);
-    let sin_pitch = Math.sin(-camera.view_angle.y * DEG_TO_RAD);
-    let cos_yaw = Math.cos(-camera.view_angle.x * DEG_TO_RAD);
-    let sin_yaw = Math.sin(-camera.view_angle.x * DEG_TO_RAD);
-    let pitch_rotation = [[1, 0, 0, 0],
-        [0, cos_pitch, sin_pitch, 0],
-        [0, -sin_pitch, cos_pitch, 0],
-        [0, 0, 0, 1]];
-    let yaw_rotation = [[cos_yaw, 0, -sin_yaw, 0],
+    let translation = [[1, 0, 0, 0],
         [0, 1, 0, 0],
-        [sin_yaw, 0, cos_yaw, 0],
-        [0, 0, 0, 1]];
-    return matrixMult(camera.projection_matrix, matrixMult(translation, matrixMult(yaw_rotation, pitch_rotation)));
+        [0, 0, 1, 0],
+        [-camera.position.x, -camera.position.y, -camera.position.z, 1]];
+    return matrixMult(translation, rotation);
+    // let pitch_rad = camera.view_angle.x*(Math.PI/180);
+    // let yaw_rad = camera.view_angle.y*(Math.PI/180);
+    // // The direction the camera is looking
+    // let forward = new Vector3(Math.cos(yaw_rad)*Math.cos(pitch_rad),
+    //                           Math.sin(pitch_rad),
+    //                           Math.sin(yaw_rad)*Math.cos(pitch_rad));
+    // let right = forward.cross(new Vector3(0, 1, 0)).normalize(); 
+    // let up = right.cross(forward).normalize();
+    // return [[right.x, up.x, forward.x, camera.position.dot(right)],
+    //         [right.y, up.y, forward.y, camera.position.dot(up)],
+    //         [right.z, up.z, forward.z, camera.position.dot(forward)],
+    //         [0, 0, 0, 1]];
+    // My version
+    // // Inverse translation of the camera's position
+    // let translation = [[1, 0, 0, -camera.position.x],
+    //                    [0, 1, 0, -camera.position.y],
+    //                    [0, 0, 1, -camera.position.z],
+    //                    [0, 0, 0, 1]];
+    // const DEG_TO_RAD = Math.PI/180;
+    // // Degrees are negative as we want to inversely rotate the world vectors
+    // let cos_pitch = Math.cos(-camera.view_angle.y*DEG_TO_RAD);
+    // let sin_pitch = Math.sin(-camera.view_angle.y*DEG_TO_RAD);
+    // let cos_yaw = Math.cos(-camera.view_angle.x*DEG_TO_RAD);
+    // let sin_yaw = Math.sin(-camera.view_angle.x*DEG_TO_RAD);
+    // let pitch_rotation = [[1, 0, 0, 0],
+    //                       [0, cos_pitch, sin_pitch, 0],
+    //                       [0, -sin_pitch, cos_pitch, 0],
+    //                       [0, 0, 0, 1]];
+    // let yaw_rotation = [[cos_yaw, 0, -sin_yaw, 0],
+    //                     [0, 1, 0, 0],
+    //                     [sin_yaw, 0, cos_yaw, 0],
+    //                     [0, 0, 0, 1]];
+    // return matrixMult(camera.projection_matrix, matrixMult(translation, matrixMult(yaw_rotation, pitch_rotation)))
 }
 function worldToScreen(camera, mvp_matrix, vector) {
-    let vec_4 = new Vector4(vector.x, vector.y, vector.z, 0);
+    let vec_4 = new Vector4(vector.x, vector.y, vector.z, 1);
     console.log(JSON.stringify(vec_4));
     vec_4 = vec_4.matrixMult(mvp_matrix);
-    vec_4.x = vec_4.x / vec_4.w;
-    vec_4.y = vec_4.y / vec_4.w;
-    vec_4.z = vec_4.z / vec_4.w;
+    // vec_4.x = vec_4.x/vec_4.w;
+    // vec_4.y = vec_4.y/vec_4.w;
+    // vec_4.z = vec_4.z/vec_4.w;
     console.log(JSON.stringify(vec_4));
     // Map to canvas
     vec_4.x = CANVAS_SIZE.x * 0.5 - vec_4.x;
@@ -249,7 +280,6 @@ function drawTriangle(triangle) {
 }
 function render(camera, objects) {
     let unmapped_triangles = unpackObjects(objects);
-    console.log(unmapped_triangles);
     let mvp_matrix = makeMVPMatrix(camera);
     let mapped_triangles = trianglesToClipSpace(camera, mvp_matrix, unmapped_triangles);
     let ordered_triangles = orderTriangles(mapped_triangles);
@@ -290,9 +320,13 @@ function ready() {
     active_camera.fov = 90;
     active_camera.view_angle.x = 0;
     active_camera.view_angle.y = 0;
+    // let vec = new Vector4(0, 0, -1, 1);
+    // console.log(vec.matrixMult(makeMVPMatrix(active_camera)));
+    // active_camera.position.y = 1;
+    // console.log(vec.matrixMult(makeMVPMatrix(active_camera)));
     let dis = 2;
     let new_tri_1 = new Triangle(new Vector3(-100, -100, dis - 1), new Vector3(-100, 100, dis), new Vector3(100, 100, dis), new RGB(0, 0, 255));
-    let new_tri_2 = new Triangle(new Vector3(100, 100, dis), new Vector3(100, -100, dis - 1), new Vector3(-100, -100, dis - 1), new RGB(355, 0, 0));
+    let new_tri_2 = new Triangle(new Vector3(100, 100, dis), new Vector3(100, -100, dis - 1), new Vector3(-100, -100, dis - 1), new RGB(255, 0, 0));
     let new_obj = new Object3D(new Vector3(0, 0, 0), [new_tri_1, new_tri_2]);
     world_objects.push(new_obj);
     // Main loop
