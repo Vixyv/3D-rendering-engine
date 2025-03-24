@@ -9,18 +9,18 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __classPrivateFieldGet = (this && this.__classPrivateFieldGet) || function (receiver, state, kind, f) {
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+    return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
+};
 var __classPrivateFieldSet = (this && this.__classPrivateFieldSet) || function (receiver, state, value, kind, f) {
     if (kind === "m") throw new TypeError("Private method is not writable");
     if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
     if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
     return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
 };
-var __classPrivateFieldGet = (this && this.__classPrivateFieldGet) || function (receiver, state, kind, f) {
-    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
-    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
-    return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
-};
-var _Camera_instances, _Camera_near, _Camera_far, _Camera_fov, _Camera_makePerspectiveProjectionMatrix;
+var _Square_instances, _Square_size, _Square_constructSquare, _Camera_instances, _Camera_near, _Camera_far, _Camera_fov, _Camera_makePerspectiveProjectionMatrix;
 class Vector2 {
     constructor(x, y) {
         this.x = 0;
@@ -93,28 +93,64 @@ class Triangle {
 }
 class Object3D {
     // Only used if a custom mesh is given
-    constructor(position, triangles) {
+    constructor(position, rotation, mesh) {
         this.position = new Vector3(0, 0, 0);
-        this.triangles = [];
+        this.rotation = new Vector3(0, 0, 0);
+        this.mesh = [];
         this.position = position === undefined ? this.position : position;
-        this.triangles = triangles === undefined ? this.triangles : triangles;
+        this.rotation = rotation === undefined ? this.rotation : rotation;
+        this.mesh = mesh === undefined ? this.mesh : mesh;
     }
-    // Position is at bottom right corner
-    newSquare(position, side_length) {
+    // TODO: Add the ability to rotate the objects
+    worldPositionTriangles() {
+        let world_pos_triangles = [];
+        for (let tri = 0; tri < this.mesh.length; tri++) {
+            let vert_1 = this.mesh[tri].vert_1.add(this.position);
+            let vert_2 = this.mesh[tri].vert_2.add(this.position);
+            let vert_3 = this.mesh[tri].vert_3.add(this.position);
+            let colour = this.mesh[tri].colour;
+            world_pos_triangles.push(new Triangle(vert_1, vert_2, vert_3, colour));
+        }
+        return world_pos_triangles;
     }
     // Physics Functions //
     translate(vector) {
-        for (let tri = 0; tri < this.triangles.length; tri++) {
-            this.triangles[tri].vert_1 = this.triangles[tri].vert_1.add(vector);
-            this.triangles[tri].vert_2 = this.triangles[tri].vert_2.add(vector);
-            this.triangles[tri].vert_3 = this.triangles[tri].vert_3.add(vector);
-        }
+        this.position = this.position.add(vector);
     }
-    moveTo(location) {
-        let vector_change = this.position.minus(location);
-        this.translate(vector_change);
+    // TODO
+    rotate(vector) {
+        return;
     }
 }
+class Square extends Object3D {
+    get size() { return __classPrivateFieldGet(this, _Square_size, "f") * 2; }
+    set size(value) { __classPrivateFieldSet(this, _Square_size, value, "f"); __classPrivateFieldGet(this, _Square_instances, "m", _Square_constructSquare).call(this, __classPrivateFieldGet(this, _Square_size, "f")); }
+    constructor(size, position, rotation) {
+        super(position, rotation);
+        _Square_instances.add(this);
+        _Square_size.set(this, void 0);
+        __classPrivateFieldSet(this, _Square_size, size * 0.5, "f");
+        __classPrivateFieldGet(this, _Square_instances, "m", _Square_constructSquare).call(this, __classPrivateFieldGet(this, _Square_size, "f"));
+    }
+}
+_Square_size = new WeakMap(), _Square_instances = new WeakSet(), _Square_constructSquare = function _Square_constructSquare(size) {
+    // Along z
+    let back_1 = new Triangle(new Vector3(-size, -size, size), new Vector3(-size, size, size), new Vector3(size, size, size), new RGB(255, 0, 0));
+    let back_2 = new Triangle(new Vector3(size, size, size), new Vector3(size, -size, size), new Vector3(-size, -size, size), new RGB(200, 0, 55));
+    let front_1 = new Triangle(new Vector3(size, -size, -size), new Vector3(-size, size, -size), new Vector3(size, size, -size), new RGB(0, 255, 0));
+    let front_2 = new Triangle(new Vector3(-size, size, -size), new Vector3(size, -size, -size), new Vector3(-size, -size, -size), new RGB(55, 200, 0));
+    // Along x
+    let left_1 = new Triangle(new Vector3(-size, -size, size), new Vector3(-size, size, size), new Vector3(-size, -size, -size), new RGB(0, 0, 255));
+    let left_2 = new Triangle(new Vector3(-size, -size, -size), new Vector3(-size, size, -size), new Vector3(-size, size, size), new RGB(0, 55, 200));
+    let right_1 = new Triangle(new Vector3(size, -size, size), new Vector3(size, -size, -size), new Vector3(size, size, -size), new RGB(255, 255, 0));
+    let right_2 = new Triangle(new Vector3(size, size, -size), new Vector3(size, size, size), new Vector3(size, -size, size), new RGB(255, 200, 0));
+    // Along y
+    let top_1 = new Triangle(new Vector3(-size, size, -size), new Vector3(size, size, -size), new Vector3(-size, size, size), new RGB(210, 210, 210));
+    let top_2 = new Triangle(new Vector3(size, size, -size), new Vector3(size, size, size), new Vector3(-size, size, size), new RGB(170, 170, 170));
+    let bottom_1 = new Triangle(new Vector3(-size, -size, -size), new Vector3(size, -size, -size), new Vector3(size, -size, size), new RGB(130, 130, 130));
+    let bottom_2 = new Triangle(new Vector3(size, -size, size), new Vector3(-size, -size, size), new Vector3(-size, -size, -size), new RGB(90, 90, 90));
+    this.mesh.push(back_1, back_2, front_1, front_2, left_1, left_2, right_1, right_2, top_1, top_2, bottom_1, bottom_2);
+};
 class Camera {
     set near(value) { __classPrivateFieldSet(this, _Camera_near, value, "f"); __classPrivateFieldGet(this, _Camera_instances, "m", _Camera_makePerspectiveProjectionMatrix).call(this); }
     set far(value) { __classPrivateFieldSet(this, _Camera_far, value, "f"); __classPrivateFieldGet(this, _Camera_instances, "m", _Camera_makePerspectiveProjectionMatrix).call(this); }
@@ -150,8 +186,8 @@ class Camera {
     move(direction) {
         let pitch_rad = this.view_angle.y * (Math.PI / 180);
         let yaw_rad = this.view_angle.x * (Math.PI / 180);
-        let forward = new Vector3(Math.sin(yaw_rad) * Math.cos(pitch_rad), Math.sin(pitch_rad), -Math.cos(yaw_rad) * Math.cos(pitch_rad));
-        let right = forward.cross(new Vector3(0, 1, 0)).normalize();
+        let forward = new Vector3(-Math.sin(yaw_rad) * Math.cos(pitch_rad), -Math.sin(pitch_rad), -Math.cos(yaw_rad) * Math.cos(pitch_rad));
+        let right = forward.cross(new Vector3(0, -1, 0)).normalize();
         let up = forward.cross(right);
         let translation = [[right.x, right.y, right.z],
             [-up.x, -up.y, -up.z],
@@ -202,10 +238,7 @@ function unpackObjects(objects) {
     let triangles = [];
     // Copies every triangle in all of the objects to be drawn (copied as the triangles will be mapped to screen space)
     for (let obj = 0; obj < objects.length; obj++) {
-        for (let tri = 0; tri < objects[obj].triangles.length; tri++) {
-            // TODO: NOTE THIS DOES NOT ACTUALLY PROPERLY COPY THE TRIANGLES (JUST MAKES A POINTER)
-            triangles.push(structuredClone(objects[obj].triangles[tri]));
-        }
+        objects[obj].worldPositionTriangles().forEach((item) => triangles.push(item));
     }
     return triangles;
 }
@@ -222,14 +255,14 @@ function trianglesToClipSpace(camera, mvp_matrix, unmapped_triangles) {
 // Derived from https://www.3dgep.com/understanding-the-view-matrix/#Look_At_Camera.
 function makeMVPMatrix(camera) {
     // Inverted because we want to rotate the vector in the opposite direction of the camera
-    let pitch_rad = camera.view_angle.y * (Math.PI / 180);
-    let yaw_rad = camera.view_angle.x * (Math.PI / 180);
+    let pitch_rad = -camera.view_angle.y * (Math.PI / 180);
+    let yaw_rad = -camera.view_angle.x * (Math.PI / 180);
     // The point the camera is looking at
     let target = new Vector3(Math.sin(yaw_rad) * Math.cos(pitch_rad), Math.sin(pitch_rad), -Math.cos(yaw_rad) * Math.cos(pitch_rad)).add(camera.position);
     // TODO: Current +y is down and -y is up (I believe the x axis is also inverted)
     // TODO: I'll also have to make a matrix to world transform if I want to have any sort of objects
     let z_axis = camera.position.minus(target); // The "forward" vector
-    let x_axis = new Vector3(0, 1, 0).cross(z_axis).normalize(); // The "right" vector
+    let x_axis = new Vector3(0, -1, 0).cross(z_axis).normalize(); // The "right" vector
     let y_axis = z_axis.cross(x_axis); // The "up" vector
     let rotation = [[x_axis.x, y_axis.x, z_axis.x, 0],
         [x_axis.y, y_axis.y, z_axis.y, 0],
@@ -322,7 +355,7 @@ let execute = true; // When false, the engine will stop running
 // Canvas
 let canvas;
 let ctx;
-const CANVAS_SIZE = new Vector2(1920, 1080);
+const CANVAS_SIZE = new Vector2(1000, 580);
 const DIST_SCALE = 0.1;
 // World
 let world_objects = [];
@@ -358,33 +391,7 @@ function ready() {
     active_camera = new Camera();
     active_camera.fov = 90;
     // World objects
-    let dis = 20;
-    let size = 18;
-    // Cube
-    let new_tri_1 = new Triangle(new Vector3(-size, -size, dis), new Vector3(-size, size, dis), new Vector3(size, size, dis), new RGB(255, 0, 0));
-    let new_tri_2 = new Triangle(new Vector3(size, size, dis), new Vector3(size, -size, dis), new Vector3(-size, -size, dis), new RGB(200, 0, 55));
-    let new_obj_1 = new Object3D(new Vector3(0, 0, 0), [new_tri_1, new_tri_2]);
-    let new_tri_3 = new Triangle(new Vector3(size, -size, -dis), new Vector3(-size, size, -dis), new Vector3(size, size, -dis), new RGB(0, 255, 0));
-    let new_tri_4 = new Triangle(new Vector3(-size, size, -dis), new Vector3(size, -size, -dis), new Vector3(-size, -size, -dis), new RGB(55, 200, 0));
-    let new_obj_2 = new Object3D(new Vector3(0, 0, 0), [new_tri_3, new_tri_4]);
-    let new_tri_5 = new Triangle(new Vector3(-dis, -size, size), new Vector3(-dis, size, size), new Vector3(-dis, -size, -size), new RGB(0, 0, 255));
-    let new_tri_6 = new Triangle(new Vector3(-dis, -size, -size), new Vector3(-dis, size, -size), new Vector3(-dis, size, size), new RGB(0, 55, 200));
-    let new_obj_3 = new Object3D(new Vector3(0, 0, 0), [new_tri_5, new_tri_6]);
-    let new_tri_7 = new Triangle(new Vector3(dis, -size, size), new Vector3(dis, -size, -size), new Vector3(dis, size, -size), new RGB(255, 255, 0));
-    let new_tri_8 = new Triangle(new Vector3(dis, size, -size), new Vector3(dis, size, size), new Vector3(dis, -size, size), new RGB(255, 200, 0));
-    let new_obj_4 = new Object3D(new Vector3(0, 0, 0), [new_tri_7, new_tri_8]);
-    let new_tri_9 = new Triangle(new Vector3(-size, dis, -size), new Vector3(size, dis, -size), new Vector3(-size, dis, size), new RGB(210, 210, 210));
-    let new_tri_10 = new Triangle(new Vector3(size, dis, -size), new Vector3(size, dis, size), new Vector3(-size, dis, size), new RGB(170, 170, 170));
-    let new_obj_5 = new Object3D(new Vector3(0, 0, 0), [new_tri_9, new_tri_10]);
-    let new_tri_11 = new Triangle(new Vector3(-size, -dis, -size), new Vector3(size, -dis, -size), new Vector3(size, -dis, size), new RGB(130, 130, 130));
-    let new_tri_12 = new Triangle(new Vector3(size, -dis, size), new Vector3(-size, -dis, size), new Vector3(-size, -dis, -size), new RGB(90, 90, 90));
-    let new_obj_6 = new Object3D(new Vector3(0, 0, 0), [new_tri_11, new_tri_12]);
-    world_objects.push(new_obj_1);
-    world_objects.push(new_obj_2);
-    world_objects.push(new_obj_3);
-    world_objects.push(new_obj_4);
-    world_objects.push(new_obj_5);
-    world_objects.push(new_obj_6);
+    world_objects.push(new Square(20, new Vector3(0, 0, 0), new Vector3(0, 0, 0)));
     process();
 }
 // Runs every frame when the game is started
