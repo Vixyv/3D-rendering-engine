@@ -125,7 +125,7 @@ class Camera {
         this.position = new Vector3(0, 0, 0);
         this.view_angle = new Vector2(0, 0); // (yaw, pitch) in degrees
         // Default settings (if near, far, or fov change, the projection matrix must be updated)
-        _Camera_near.set(this, 0.1);
+        _Camera_near.set(this, 0.01);
         _Camera_far.set(this, 1500);
         _Camera_fov.set(this, 90);
         this.pitch_clamp = new Vector2(-90, 90); // Lower and upper vertical clamps on
@@ -226,6 +226,8 @@ function makeMVPMatrix(camera) {
     let yaw_rad = camera.view_angle.x * (Math.PI / 180);
     // The point the camera is looking at
     let target = new Vector3(Math.sin(yaw_rad) * Math.cos(pitch_rad), Math.sin(pitch_rad), -Math.cos(yaw_rad) * Math.cos(pitch_rad)).add(camera.position);
+    // TODO: Current +y is down and -y is up (I believe the x axis is also inverted)
+    // TODO: I'll also have to make a matrix to world transform if I want to have any sort of objects
     let z_axis = camera.position.minus(target); // The "forward" vector
     let x_axis = new Vector3(0, 1, 0).cross(z_axis).normalize(); // The "right" vector
     let y_axis = z_axis.cross(x_axis); // The "up" vector
@@ -258,13 +260,29 @@ function orderTriangles(triangles) {
     let av_z_dists = [];
     let av_z_dist = 0;
     for (let tri = 0; tri < triangles.length; tri++) {
+        let vert_1 = triangles[tri].vert_1;
+        let vert_2 = triangles[tri].vert_2;
+        let vert_3 = triangles[tri].vert_3;
         // Checks if the triangles are behind the camera
-        if (triangles[tri].vert_1.z > 0 || triangles[tri].vert_2.z > 0 || triangles[tri].vert_2.z > 0) {
+        // (Technically z > 0 is behind the camera, but the floating point
+        // rendering bug can occur at z values of -0.5)
+        if (vert_1.z > -5 || vert_2.z > -5 || vert_3.z > -5) {
             triangles.splice(tri, 1);
             tri--;
             continue;
         }
-        av_z_dist = (triangles[tri].vert_1.z + triangles[tri].vert_2.z + triangles[tri].vert_2.z) / 3;
+        // Checks for the floating point rendering error using sign analysis (only when Math.abs(vert_1.x) > 1000)
+        // When looking straight at a vector and rotating, the x value will increase faster and faster (trig functions).
+        // If the angle sheer enough, floating point error will change the sign of the x value resulting
+        // in a triangle appearing across the screen.
+        let sign_sum = Math.abs(Math.sign(vert_1.x) + Math.sign(vert_2.x) + Math.sign(vert_3.x));
+        if (Math.abs(vert_1.x) > 2000 && sign_sum < 3) {
+            triangles.splice(tri, 1);
+            tri--;
+            continue;
+        }
+        // Averages the distance of the triangle
+        av_z_dist = (vert_1.z + vert_2.z + vert_3.z) / 3;
         av_z_dists.push(av_z_dist);
     }
     // Sorts by average z distance (farthest to closest) (fyi, the values are negative)
@@ -294,18 +312,17 @@ function render(camera, objects) {
     let mapped_triangles = trianglesToClipSpace(camera, mvp_matrix, unmapped_triangles);
     let ordered_triangles = orderTriangles(mapped_triangles);
     drawSkyBox();
-    // console.log(ordered_triangles[0].vert_1);
     for (let tri = 0; tri < ordered_triangles.length; tri++) {
         drawTriangle(ordered_triangles[tri]);
     }
 }
 // - Physics - //
 // - Init - //
-let execute = false; // When false, engine will stop running
+let execute = true; // When false, the engine will stop running
 // Canvas
 let canvas;
 let ctx;
-const CANVAS_SIZE = new Vector2(1000, 600);
+const CANVAS_SIZE = new Vector2(1920, 1080);
 const DIST_SCALE = 0.1;
 // World
 let world_objects = [];
@@ -337,21 +354,38 @@ function ready() {
     ctx = temp_ctx;
     canvas.width = CANVAS_SIZE.x;
     canvas.height = CANVAS_SIZE.y;
-    // Init camera and projection matrix
+    // Init camera
     active_camera = new Camera();
-    // let vec = new Vector4(10, 10, -1, 1);
-    // console.log(vec.matrixMult(makeMVPMatrix(active_camera)));
-    // console.log(vec.matrixMult(makeMVPMatrix(active_camera)));
-    let dis = 40;
-    let size = 10;
-    let new_tri_1 = new Triangle(new Vector3(-size, -size, dis), new Vector3(-size, size, dis), new Vector3(size, size, dis), new RGB(0, 0, 255));
-    let new_tri_2 = new Triangle(new Vector3(size, size, dis), new Vector3(size, -size, dis), new Vector3(-size, -size, dis), new RGB(255, 0, 0));
+    active_camera.fov = 90;
+    // World objects
+    let dis = 20;
+    let size = 18;
+    // Cube
+    let new_tri_1 = new Triangle(new Vector3(-size, -size, dis), new Vector3(-size, size, dis), new Vector3(size, size, dis), new RGB(255, 0, 0));
+    let new_tri_2 = new Triangle(new Vector3(size, size, dis), new Vector3(size, -size, dis), new Vector3(-size, -size, dis), new RGB(200, 0, 55));
     let new_obj_1 = new Object3D(new Vector3(0, 0, 0), [new_tri_1, new_tri_2]);
-    let new_tri_3 = new Triangle(new Vector3(-size, -size, -dis), new Vector3(-size, size, -dis), new Vector3(size, size, -dis), new RGB(0, 255, 0));
-    let new_tri_4 = new Triangle(new Vector3(size, size, -dis), new Vector3(size, -size, -dis), new Vector3(-size, -size, -dis), new RGB(255, 255, 0));
+    let new_tri_3 = new Triangle(new Vector3(size, -size, -dis), new Vector3(-size, size, -dis), new Vector3(size, size, -dis), new RGB(0, 255, 0));
+    let new_tri_4 = new Triangle(new Vector3(-size, size, -dis), new Vector3(size, -size, -dis), new Vector3(-size, -size, -dis), new RGB(55, 200, 0));
     let new_obj_2 = new Object3D(new Vector3(0, 0, 0), [new_tri_3, new_tri_4]);
+    let new_tri_5 = new Triangle(new Vector3(-dis, -size, size), new Vector3(-dis, size, size), new Vector3(-dis, -size, -size), new RGB(0, 0, 255));
+    let new_tri_6 = new Triangle(new Vector3(-dis, -size, -size), new Vector3(-dis, size, -size), new Vector3(-dis, size, size), new RGB(0, 55, 200));
+    let new_obj_3 = new Object3D(new Vector3(0, 0, 0), [new_tri_5, new_tri_6]);
+    let new_tri_7 = new Triangle(new Vector3(dis, -size, size), new Vector3(dis, -size, -size), new Vector3(dis, size, -size), new RGB(255, 255, 0));
+    let new_tri_8 = new Triangle(new Vector3(dis, size, -size), new Vector3(dis, size, size), new Vector3(dis, -size, size), new RGB(255, 200, 0));
+    let new_obj_4 = new Object3D(new Vector3(0, 0, 0), [new_tri_7, new_tri_8]);
+    let new_tri_9 = new Triangle(new Vector3(-size, dis, -size), new Vector3(size, dis, -size), new Vector3(-size, dis, size), new RGB(210, 210, 210));
+    let new_tri_10 = new Triangle(new Vector3(size, dis, -size), new Vector3(size, dis, size), new Vector3(-size, dis, size), new RGB(170, 170, 170));
+    let new_obj_5 = new Object3D(new Vector3(0, 0, 0), [new_tri_9, new_tri_10]);
+    let new_tri_11 = new Triangle(new Vector3(-size, -dis, -size), new Vector3(size, -dis, -size), new Vector3(size, -dis, size), new RGB(130, 130, 130));
+    let new_tri_12 = new Triangle(new Vector3(size, -dis, size), new Vector3(-size, -dis, size), new Vector3(-size, -dis, -size), new RGB(90, 90, 90));
+    let new_obj_6 = new Object3D(new Vector3(0, 0, 0), [new_tri_11, new_tri_12]);
     world_objects.push(new_obj_1);
     world_objects.push(new_obj_2);
+    world_objects.push(new_obj_3);
+    world_objects.push(new_obj_4);
+    world_objects.push(new_obj_5);
+    world_objects.push(new_obj_6);
+    process();
 }
 // Runs every frame when the game is started
 function process() {
@@ -359,13 +393,13 @@ function process() {
         while (execute) {
             render(active_camera, world_objects);
             executeMoves();
-            yield sleep(16.667); // 60 fps
+            yield sleep(10); // 100 fps
         }
     });
 }
 // - Input - //
-const ROTATE_SPEED = 2;
-const MOVE_SPEED = 2;
+const ROTATE_SPEED = 1;
+const MOVE_SPEED = 1;
 // Used to track all of the current keys pressed (allowing for multiple inputs at once)
 // Each key's function is then executed if the key is pressed in executeMoves()
 const CAMERA_CONTROLLER = {
