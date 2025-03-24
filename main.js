@@ -1,5 +1,14 @@
 "use strict";
 // - Classes - //
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 var __classPrivateFieldSet = (this && this.__classPrivateFieldSet) || function (receiver, state, value, kind, f) {
     if (kind === "m") throw new TypeError("Private method is not writable");
     if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
@@ -33,6 +42,11 @@ class Vector3 {
     }
     add(vector) { return new Vector3(this.x + vector.x, this.y + vector.y, this.z + vector.z); }
     minus(vector) { return new Vector3(this.x - vector.x, this.y - vector.y, this.z - vector.z); }
+    vecMult(vector) { return new Vector3(this.x * vector.x, this.y * vector.y, this.z * vector.z); }
+    // Column major
+    matrixMult(matrix) {
+        return new Vector3(this.x * matrix[0][0] + this.y * matrix[1][0] + this.z * matrix[2][0], this.x * matrix[0][1] + this.y * matrix[1][1] + this.z * matrix[2][1], this.x * matrix[0][2] + this.y * matrix[1][2] + this.z * matrix[2][2]);
+    }
     dot(vector) { return this.x * vector.x + this.y * vector.y + this.z * vector.z; }
     cross(vector) {
         return new Vector3(this.y * vector.z - this.z * vector.y, this.z * vector.x - this.x * vector.z, this.x * vector.y - this.y * vector.x);
@@ -55,7 +69,7 @@ class Vector4 {
     }
     add(vector) { return new Vector4(this.x + vector.x, this.y + vector.y, this.z + vector.z, this.w + vector.w); }
     minus(vector) { return new Vector4(this.x - vector.x, this.y - vector.y, this.z - vector.z, this.w + vector.w); }
-    // Row major
+    // Column major
     matrixMult(matrix) {
         return new Vector4(this.x * matrix[0][0] + this.y * matrix[1][0] + this.z * matrix[2][0] + this.w * matrix[3][0], this.x * matrix[0][1] + this.y * matrix[1][1] + this.z * matrix[2][1] + this.w * matrix[3][1], this.x * matrix[0][2] + this.y * matrix[1][2] + this.z * matrix[2][2] + this.w * matrix[3][2], this.x * matrix[0][3] + this.y * matrix[1][3] + this.z * matrix[2][3] + this.w * matrix[3][3]);
     }
@@ -109,10 +123,10 @@ class Camera {
         _Camera_instances.add(this);
         // State
         this.position = new Vector3(0, 0, 0);
-        this.view_angle = new Vector2(0, 90); // (yaw, pitch) in degrees
+        this.view_angle = new Vector2(0, 0); // (yaw, pitch) in degrees
         // Default settings (if near, far, or fov change, the projection matrix must be updated)
         _Camera_near.set(this, 0.1);
-        _Camera_far.set(this, 400);
+        _Camera_far.set(this, 1500);
         _Camera_fov.set(this, 90);
         this.pitch_clamp = new Vector2(-90, 90); // Lower and upper vertical clamps on
         // Perspective projection matrix
@@ -121,26 +135,39 @@ class Camera {
         this.view_angle = view_angle === undefined ? this.view_angle : view_angle;
         __classPrivateFieldSet(this, _Camera_near, near === undefined ? __classPrivateFieldGet(this, _Camera_near, "f") : near, "f");
         __classPrivateFieldSet(this, _Camera_far, far === undefined ? __classPrivateFieldGet(this, _Camera_far, "f") : far, "f");
-        __classPrivateFieldSet(this, _Camera_fov, fov === undefined ? this.fov : fov, "f");
+        __classPrivateFieldSet(this, _Camera_fov, fov === undefined ? __classPrivateFieldGet(this, _Camera_fov, "f") : fov, "f");
         this.pitch_clamp = pitch_clamp === undefined ? this.pitch_clamp : pitch_clamp;
         __classPrivateFieldGet(this, _Camera_instances, "m", _Camera_makePerspectiveProjectionMatrix).call(this);
     }
     rotate(rotation) {
-        this.view_angle = rotation;
+        this.view_angle = this.view_angle.add(rotation);
         if (this.view_angle.x >= 360 || this.view_angle.x < 0) {
             this.view_angle.x = this.view_angle.x % 360;
         }
         this.view_angle.y = clamp(this.view_angle.y, this.pitch_clamp.x, this.pitch_clamp.y);
     }
+    // Moves the camera relative to the direction the camera is facing
+    move(direction) {
+        let pitch_rad = this.view_angle.y * (Math.PI / 180);
+        let yaw_rad = this.view_angle.x * (Math.PI / 180);
+        let forward = new Vector3(Math.sin(yaw_rad) * Math.cos(pitch_rad), Math.sin(pitch_rad), -Math.cos(yaw_rad) * Math.cos(pitch_rad));
+        let right = forward.cross(new Vector3(0, 1, 0)).normalize();
+        let up = forward.cross(right);
+        let translation = [[right.x, right.y, right.z],
+            [-up.x, -up.y, -up.z],
+            [forward.x, forward.y, forward.z]];
+        this.position = this.position.minus(direction.matrixMult(translation));
+    }
+    // Moves the camera relative to the world axes
     translate(vector) { this.position = this.position.add(vector); }
 }
 _Camera_near = new WeakMap(), _Camera_far = new WeakMap(), _Camera_fov = new WeakMap(), _Camera_instances = new WeakSet(), _Camera_makePerspectiveProjectionMatrix = function _Camera_makePerspectiveProjectionMatrix() {
     let SCALE = 1 / Math.tan(__classPrivateFieldGet(this, _Camera_fov, "f") * 0.5 * Math.PI / 180);
     this.projection_matrix[0][0] = SCALE;
-    this.projection_matrix[1][1] = SCALE;
-    this.projection_matrix[2][2] = -__classPrivateFieldGet(this, _Camera_far, "f") / (__classPrivateFieldGet(this, _Camera_far, "f") - __classPrivateFieldGet(this, _Camera_near, "f"));
-    this.projection_matrix[3][2] = -(__classPrivateFieldGet(this, _Camera_far, "f") * __classPrivateFieldGet(this, _Camera_near, "f")) / (__classPrivateFieldGet(this, _Camera_far, "f") - __classPrivateFieldGet(this, _Camera_near, "f"));
+    this.projection_matrix[1][1] = (CANVAS_SIZE.x / CANVAS_SIZE.y) * SCALE;
+    this.projection_matrix[2][2] = (__classPrivateFieldGet(this, _Camera_far, "f") + __classPrivateFieldGet(this, _Camera_near, "f")) / (__classPrivateFieldGet(this, _Camera_near, "f") - __classPrivateFieldGet(this, _Camera_far, "f"));
     this.projection_matrix[2][3] = -1.0;
+    this.projection_matrix[3][2] = (2 * __classPrivateFieldGet(this, _Camera_far, "f") * __classPrivateFieldGet(this, _Camera_near, "f")) / (__classPrivateFieldGet(this, _Camera_near, "f") - __classPrivateFieldGet(this, _Camera_far, "f"));
 };
 // - Tool Functions - //
 // Clamps x to be from min to max (inclusive)
@@ -166,6 +193,8 @@ function matrixMult(mat_1, mat_2) {
     }
     return mat_mult;
 }
+// Stops the program from running for n milliseconds (https://stackoverflow.com/questions/951021/what-is-the-javascript-version-of-sleep)
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // - Rendering - //
 // Notes //
 // Directionality: y-up, right-handed (https://pbs.twimg.com/media/EmVSW5AW8AAoDD9.jpg:large)
@@ -188,85 +217,66 @@ function trianglesToClipSpace(camera, mvp_matrix, unmapped_triangles) {
     }
     return unmapped_triangles;
 }
+// Generates a matrix which transforms world coordinates to view coordinates
+// Based upon the position, pitch, and yaw of the camera.
+// Derived from https://www.3dgep.com/understanding-the-view-matrix/#Look_At_Camera.
 function makeMVPMatrix(camera) {
+    // Inverted because we want to rotate the vector in the opposite direction of the camera
     let pitch_rad = camera.view_angle.y * (Math.PI / 180);
     let yaw_rad = camera.view_angle.x * (Math.PI / 180);
-    let cos_pitch = Math.cos(-pitch_rad);
-    let sin_pitch = Math.sin(-pitch_rad);
-    let cos_yaw = Math.cos(-yaw_rad);
-    let sin_yaw = Math.sin(-yaw_rad);
-    let rotation = [[cos_yaw, -sin_yaw * sin_pitch, sin_yaw * cos_pitch, 1],
-        [0, cos_pitch, sin_pitch, 1],
-        [-sin_yaw, -cos_yaw * sin_pitch, cos_yaw * cos_pitch, 1],
+    // The point the camera is looking at
+    let target = new Vector3(Math.sin(yaw_rad) * Math.cos(pitch_rad), Math.sin(pitch_rad), -Math.cos(yaw_rad) * Math.cos(pitch_rad)).add(camera.position);
+    let z_axis = camera.position.minus(target); // The "forward" vector
+    let x_axis = new Vector3(0, 1, 0).cross(z_axis).normalize(); // The "right" vector
+    let y_axis = z_axis.cross(x_axis); // The "up" vector
+    let rotation = [[x_axis.x, y_axis.x, z_axis.x, 0],
+        [x_axis.y, y_axis.y, z_axis.y, 0],
+        [x_axis.z, y_axis.z, z_axis.z, 0],
         [0, 0, 0, 1]];
     let translation = [[1, 0, 0, 0],
         [0, 1, 0, 0],
         [0, 0, 1, 0],
         [-camera.position.x, -camera.position.y, -camera.position.z, 1]];
     return matrixMult(translation, rotation);
-    // let pitch_rad = camera.view_angle.x*(Math.PI/180);
-    // let yaw_rad = camera.view_angle.y*(Math.PI/180);
-    // // The direction the camera is looking
-    // let forward = new Vector3(Math.cos(yaw_rad)*Math.cos(pitch_rad),
-    //                           Math.sin(pitch_rad),
-    //                           Math.sin(yaw_rad)*Math.cos(pitch_rad));
-    // let right = forward.cross(new Vector3(0, 1, 0)).normalize(); 
-    // let up = right.cross(forward).normalize();
-    // return [[right.x, up.x, forward.x, camera.position.dot(right)],
-    //         [right.y, up.y, forward.y, camera.position.dot(up)],
-    //         [right.z, up.z, forward.z, camera.position.dot(forward)],
-    //         [0, 0, 0, 1]];
-    // My version
-    // // Inverse translation of the camera's position
-    // let translation = [[1, 0, 0, -camera.position.x],
-    //                    [0, 1, 0, -camera.position.y],
-    //                    [0, 0, 1, -camera.position.z],
-    //                    [0, 0, 0, 1]];
-    // const DEG_TO_RAD = Math.PI/180;
-    // // Degrees are negative as we want to inversely rotate the world vectors
-    // let cos_pitch = Math.cos(-camera.view_angle.y*DEG_TO_RAD);
-    // let sin_pitch = Math.sin(-camera.view_angle.y*DEG_TO_RAD);
-    // let cos_yaw = Math.cos(-camera.view_angle.x*DEG_TO_RAD);
-    // let sin_yaw = Math.sin(-camera.view_angle.x*DEG_TO_RAD);
-    // let pitch_rotation = [[1, 0, 0, 0],
-    //                       [0, cos_pitch, sin_pitch, 0],
-    //                       [0, -sin_pitch, cos_pitch, 0],
-    //                       [0, 0, 0, 1]];
-    // let yaw_rotation = [[cos_yaw, 0, -sin_yaw, 0],
-    //                     [0, 1, 0, 0],
-    //                     [sin_yaw, 0, cos_yaw, 0],
-    //                     [0, 0, 0, 1]];
-    // return matrixMult(camera.projection_matrix, matrixMult(translation, matrixMult(yaw_rotation, pitch_rotation)))
 }
 function worldToScreen(camera, mvp_matrix, vector) {
     let vec_4 = new Vector4(vector.x, vector.y, vector.z, 1);
-    console.log(JSON.stringify(vec_4));
     vec_4 = vec_4.matrixMult(mvp_matrix);
-    // vec_4.x = vec_4.x/vec_4.w;
-    // vec_4.y = vec_4.y/vec_4.w;
-    // vec_4.z = vec_4.z/vec_4.w;
-    console.log(JSON.stringify(vec_4));
+    vec_4.w = 1;
+    vec_4 = vec_4.matrixMult(camera.projection_matrix);
+    if (vec_4.w != 0) {
+        vec_4.x = vec_4.x / (vec_4.w);
+        vec_4.y = vec_4.y / (vec_4.w);
+        // vec_4.z = vec_4.z/(vec_4.w);
+    }
     // Map to canvas
-    vec_4.x = CANVAS_SIZE.x * 0.5 - vec_4.x;
-    vec_4.y = CANVAS_SIZE.y * 0.5 + vec_4.y;
-    console.log(JSON.stringify(vec_4));
-    console.log("- - - - -");
+    vec_4.x = CANVAS_SIZE.x * 0.5 * (vec_4.x + 1);
+    vec_4.y = CANVAS_SIZE.y * 0.5 * (1 - vec_4.y);
     return new Vector3(vec_4.x, vec_4.y, vec_4.z);
 }
 function orderTriangles(triangles) {
     let av_z_dists = [];
     let av_z_dist = 0;
     for (let tri = 0; tri < triangles.length; tri++) {
-        av_z_dist = (triangles[tri].vert_1.z + triangles[tri].vert_2.z + triangles[tri].vert_2.z) / 3;
-        if (av_z_dist >= 0) {
-            av_z_dists.push(av_z_dist);
+        // Checks if the triangles are behind the camera
+        if (triangles[tri].vert_1.z > 0 || triangles[tri].vert_2.z > 0 || triangles[tri].vert_2.z > 0) {
+            triangles.splice(tri, 1);
+            tri--;
+            continue;
         }
+        av_z_dist = (triangles[tri].vert_1.z + triangles[tri].vert_2.z + triangles[tri].vert_2.z) / 3;
+        av_z_dists.push(av_z_dist);
     }
-    // Sorts by average z distance (farthest to closest)
+    // Sorts by average z distance (farthest to closest) (fyi, the values are negative)
     triangles.sort((a, b) => {
-        return av_z_dists[triangles.indexOf(b)] - av_z_dists[triangles.indexOf(a)];
+        return av_z_dists[triangles.indexOf(a)] - av_z_dists[triangles.indexOf(b)];
     });
     return triangles;
+}
+function drawSkyBox() {
+    ctx.fillStyle = "rgb(255, 255, 255)";
+    ctx.beginPath();
+    ctx.fillRect(0, 0, CANVAS_SIZE.x, CANVAS_SIZE.y);
 }
 function drawTriangle(triangle) {
     // For some reason Triangle loses its object-ness and RGB needs to be reinstantiated to call toStr()
@@ -283,25 +293,37 @@ function render(camera, objects) {
     let mvp_matrix = makeMVPMatrix(camera);
     let mapped_triangles = trianglesToClipSpace(camera, mvp_matrix, unmapped_triangles);
     let ordered_triangles = orderTriangles(mapped_triangles);
+    drawSkyBox();
+    // console.log(ordered_triangles[0].vert_1);
     for (let tri = 0; tri < ordered_triangles.length; tri++) {
         drawTriangle(ordered_triangles[tri]);
     }
 }
 // - Physics - //
-function process(delta) {
-    // TODO: Calculate delta to determine how long it has been since last execution
-    return;
-}
 // - Init - //
-let execute = true; // When false, engine will stop running
+let execute = false; // When false, engine will stop running
 // Canvas
 let canvas;
 let ctx;
 const CANVAS_SIZE = new Vector2(1000, 600);
+const DIST_SCALE = 0.1;
 // World
 let world_objects = [];
 let active_camera;
 function ready() {
+    // Init keyboard input
+    document.addEventListener("keydown", (ev) => {
+        // Checks if the key pressed is used to control the camera
+        if (CAMERA_CONTROLLER[ev.key]) {
+            CAMERA_CONTROLLER[ev.key].pressed = true;
+        }
+    });
+    document.addEventListener("keyup", (ev) => {
+        // Checks if the key pressed is used to control the camera
+        if (CAMERA_CONTROLLER[ev.key]) {
+            CAMERA_CONTROLLER[ev.key].pressed = false;
+        }
+    });
     // Init canvas and context
     let temp_canvas = document.getElementById("canvas");
     if (!temp_canvas || !(temp_canvas instanceof HTMLCanvasElement)) {
@@ -317,22 +339,53 @@ function ready() {
     canvas.height = CANVAS_SIZE.y;
     // Init camera and projection matrix
     active_camera = new Camera();
-    active_camera.fov = 90;
-    active_camera.view_angle.x = 0;
-    active_camera.view_angle.y = 0;
-    // let vec = new Vector4(0, 0, -1, 1);
+    // let vec = new Vector4(10, 10, -1, 1);
     // console.log(vec.matrixMult(makeMVPMatrix(active_camera)));
-    // active_camera.position.y = 1;
     // console.log(vec.matrixMult(makeMVPMatrix(active_camera)));
-    let dis = 2;
-    let new_tri_1 = new Triangle(new Vector3(-100, -100, dis - 1), new Vector3(-100, 100, dis), new Vector3(100, 100, dis), new RGB(0, 0, 255));
-    let new_tri_2 = new Triangle(new Vector3(100, 100, dis), new Vector3(100, -100, dis - 1), new Vector3(-100, -100, dis - 1), new RGB(255, 0, 0));
-    let new_obj = new Object3D(new Vector3(0, 0, 0), [new_tri_1, new_tri_2]);
-    world_objects.push(new_obj);
-    // Main loop
-    while (execute) {
-        render(active_camera, world_objects);
-        process(0);
-        execute = false;
-    }
+    let dis = 40;
+    let size = 10;
+    let new_tri_1 = new Triangle(new Vector3(-size, -size, dis), new Vector3(-size, size, dis), new Vector3(size, size, dis), new RGB(0, 0, 255));
+    let new_tri_2 = new Triangle(new Vector3(size, size, dis), new Vector3(size, -size, dis), new Vector3(-size, -size, dis), new RGB(255, 0, 0));
+    let new_obj_1 = new Object3D(new Vector3(0, 0, 0), [new_tri_1, new_tri_2]);
+    let new_tri_3 = new Triangle(new Vector3(-size, -size, -dis), new Vector3(-size, size, -dis), new Vector3(size, size, -dis), new RGB(0, 255, 0));
+    let new_tri_4 = new Triangle(new Vector3(size, size, -dis), new Vector3(size, -size, -dis), new Vector3(-size, -size, -dis), new RGB(255, 255, 0));
+    let new_obj_2 = new Object3D(new Vector3(0, 0, 0), [new_tri_3, new_tri_4]);
+    world_objects.push(new_obj_1);
+    world_objects.push(new_obj_2);
+}
+// Runs every frame when the game is started
+function process() {
+    return __awaiter(this, void 0, void 0, function* () {
+        while (execute) {
+            render(active_camera, world_objects);
+            executeMoves();
+            yield sleep(16.667); // 60 fps
+        }
+    });
+}
+// - Input - //
+const ROTATE_SPEED = 2;
+const MOVE_SPEED = 2;
+// Used to track all of the current keys pressed (allowing for multiple inputs at once)
+// Each key's function is then executed if the key is pressed in executeMoves()
+const CAMERA_CONTROLLER = {
+    // Orientation
+    "ArrowUp": { pressed: false, func: (camera) => camera.rotate(new Vector2(0, ROTATE_SPEED)) }, // Look up
+    "ArrowDown": { pressed: false, func: (camera) => camera.rotate(new Vector2(0, -ROTATE_SPEED)) }, // Look down
+    "ArrowLeft": { pressed: false, func: (camera) => camera.rotate(new Vector2(-ROTATE_SPEED, 0)) }, // Look left
+    "ArrowRight": { pressed: false, func: (camera) => camera.rotate(new Vector2(ROTATE_SPEED, 0)) }, // Look right
+    // Position
+    "w": { pressed: false, func: (camera) => camera.move(new Vector3(0, 0, MOVE_SPEED)) }, // Forward
+    "a": { pressed: false, func: (camera) => camera.move(new Vector3(-MOVE_SPEED, 0, 0)) }, // Left
+    "s": { pressed: false, func: (camera) => camera.move(new Vector3(0, 0, -MOVE_SPEED)) }, // Back
+    "d": { pressed: false, func: (camera) => camera.move(new Vector3(MOVE_SPEED, 0, 0)) }, // Right
+    "q": { pressed: false, func: (camera) => camera.move(new Vector3(0, -MOVE_SPEED, 0)) }, // Down
+    "e": { pressed: false, func: (camera) => camera.move(new Vector3(0, MOVE_SPEED, 0)) }, // Up
+};
+// Executes all moves based upon current inputs
+function executeMoves() {
+    // Derived from (https://medium.com/@dovern42/handling-multiple-key-presses-at-once-in-vanilla-javascript-for-game-controllers-6dcacae931b7)
+    Object.keys(CAMERA_CONTROLLER).forEach(key => {
+        CAMERA_CONTROLLER[key].pressed && CAMERA_CONTROLLER[key].func(active_camera);
+    });
 }
