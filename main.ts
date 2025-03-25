@@ -10,7 +10,6 @@ class Vector2 {
     }
 
     add(vector: Vector2) { return new Vector2(this.x+vector.x, this.y+vector.y); }
-    minus(vector: Vector2) { return new Vector2(this.x-vector.x, this.y-vector.y); }
 }
 
 class Vector3 {
@@ -61,8 +60,6 @@ class Vector4 {
         this.w = w === undefined ? this.w : w;
     }
 
-    add(vector: Vector4) { return new Vector4(this.x+vector.x, this.y+vector.y, this.z+vector.z, this.w+vector.w); }
-    minus(vector: Vector4) { return new Vector4(this.x-vector.x, this.y-vector.y, this.z-vector.z, this.w+vector.w); }
     // Column major
     matrixMult(matrix: Array<Array<number>>) {
         return new Vector4(
@@ -103,26 +100,26 @@ class Triangle {
     }
 }
 
-class Object3D {
-    position: Vector3 = new Vector3(0, 0, 0);
-    rotation: Vector3 = new Vector3(0, 0, 0);
+class ObjectNode {
+    position: Vector3;
+    rotation: Vector3;
+    scale: Vector3;
     mesh: Array<Triangle> = [];
 
     // Only used if a custom mesh is given
-    constructor(position?: Vector3, rotation?: Vector3, mesh?: Array<Triangle>) {
-        this.position = position === undefined ? this.position : position;
-        this.rotation = rotation === undefined ? this.rotation : rotation;
-        this.mesh = mesh === undefined ? this.mesh : mesh;
+    constructor(position: Vector3, rotation: Vector3, scale: Vector3) {
+        this.position = position;
+        this.rotation = rotation;
+        this.scale = scale;
     }
 
-    // TODO: Add the ability to rotate the objects
     worldPositionTriangles() : Array<Triangle> {
         let world_pos_triangles = []
 
         for (let tri = 0; tri<this.mesh.length; tri++) {
-            let vert_1 = this.mesh[tri].vert_1.add(this.position);
-            let vert_2 = this.mesh[tri].vert_2.add(this.position);
-            let vert_3 = this.mesh[tri].vert_3.add(this.position);
+            let vert_1 = this.#modelToWorld(this.mesh[tri].vert_1);
+            let vert_2 = this.#modelToWorld(this.mesh[tri].vert_2);
+            let vert_3 = this.#modelToWorld(this.mesh[tri].vert_3);
 
             let colour = this.mesh[tri].colour;
 
@@ -132,62 +129,63 @@ class Object3D {
         return world_pos_triangles
     }
 
-    // TODO: Makes this cleaner
-    #constructTriangles() {
-        return
+    #modelToWorld(vector: Vector3) : Vector3 {
+        // 1. Scale
+        // TODO 2. Rotate  Later
+        // 3. Translate
+
+        return vector.vecMult(this.scale).add(this.position);
     }
 
     // Physics Functions //
     translate(vector: Vector3) {
         this.position = this.position.add(vector);
-        this.#constructTriangles();
     }
 
-    // TODO
     rotate(vector: Vector3) {
-        return
+        this.rotation = this.rotation.add(vector);
     }
 }
 
-class Square extends Object3D {
-    #size: number;
-        get size() { return this.#size*2 }
-        set size(value: number) { this.#size = value; this.#constructTriangles(this.#size); }
-
-    constructor(size: number, position: Vector3, rotation: Vector3) {
-        super(position, rotation);
-
-        this.#size = size*0.5;
-        this.#constructTriangles(this.#size);
+class Box extends ObjectNode {
+    constructor(position: Vector3, rotation: Vector3, scale: Vector3) {
+        super(position, rotation, scale);
+        this.#constructMesh();
     }
 
     // Creates all the triangles of the squares and appends them to the square's mesh
-    #constructTriangles(size: number) {
+    #constructMesh() {
         // Along z
-        let back_1 = new Triangle(new Vector3(-size, -size, size), new Vector3(-size, size, size), new Vector3(size, size, size), new RGB(255, 0, 0));
-        let back_2 = new Triangle(new Vector3(size, size, size), new Vector3(size, -size, size), new Vector3(-size, -size, size), new RGB(200, 0, 55));
+        let back_1 = new Triangle(new Vector3(-1, -1, 1), new Vector3(-1, 1, 1), new Vector3(1, 1, 1), new RGB(255, 0, 0));
+        let back_2 = new Triangle(new Vector3(1, 1, 1), new Vector3(1, -1, 1), new Vector3(-1, -1, 1), new RGB(200, 0, 55));
 
-        let front_1 = new Triangle(new Vector3(size, -size, -size), new Vector3(-size, size, -size), new Vector3(size, size, -size), new RGB(0, 255, 0));
-        let front_2 = new Triangle(new Vector3(-size, size, -size), new Vector3(size, -size, -size), new Vector3(-size, -size, -size), new RGB(55, 200, 0));
+        let front_1 = new Triangle(new Vector3(1, -1, -1), new Vector3(-1, 1, -1), new Vector3(1, 1, -1), new RGB(0, 255, 0));
+        let front_2 = new Triangle(new Vector3(-1, 1, -1), new Vector3(1, -1, -1), new Vector3(-1, -1, -1), new RGB(55, 200, 0));
 
         // Along x
-        let left_1 = new Triangle(new Vector3(-size, -size, size), new Vector3(-size, size, size), new Vector3(-size, -size, -size), new RGB(0, 0, 255));
-        let left_2 = new Triangle(new Vector3(-size, -size, -size), new Vector3(-size, size, -size), new Vector3(-size, size, size), new RGB(0, 55, 200));
+        let left_1 = new Triangle(new Vector3(-1, -1, 1), new Vector3(-1, 1, 1), new Vector3(-1, -1, -1), new RGB(0, 0, 255));
+        let left_2 = new Triangle(new Vector3(-1, -1, -1), new Vector3(-1, 1, -1), new Vector3(-1, 1, 1), new RGB(0, 55, 200));
 
-        let right_1 = new Triangle(new Vector3(size, -size, size), new Vector3(size, -size, -size), new Vector3(size, size, -size), new RGB(255, 255, 0));
-        let right_2 = new Triangle(new Vector3(size, size, -size), new Vector3(size, size, size), new Vector3(size, -size, size), new RGB(255, 200, 0));
+        let right_1 = new Triangle(new Vector3(1, -1, 1), new Vector3(1, -1, -1), new Vector3(1, 1, -1), new RGB(255, 255, 0));
+        let right_2 = new Triangle(new Vector3(1, 1, -1), new Vector3(1, 1, 1), new Vector3(1, -1, 1), new RGB(255, 200, 0));
 
         // Along y
-        let top_1 = new Triangle(new Vector3(-size, size, -size), new Vector3(size, size, -size), new Vector3(-size, size, size), new RGB(210, 210, 210));
-        let top_2 = new Triangle(new Vector3(size, size, -size), new Vector3(size, size, size), new Vector3(-size, size, size), new RGB(170, 170, 170));
+        let top_1 = new Triangle(new Vector3(-1, 1, -1), new Vector3(1, 1, -1), new Vector3(-1, 1, 1), new RGB(210, 210, 210));
+        let top_2 = new Triangle(new Vector3(1, 1, -1), new Vector3(1, 1, 1), new Vector3(-1, 1, 1), new RGB(170, 170, 170));
 
-        let bottom_1 = new Triangle(new Vector3(-size, -size, -size), new Vector3(size, -size, -size), new Vector3(size, -size, size), new RGB(130, 130, 130));
-        let bottom_2 = new Triangle(new Vector3(size, -size, size), new Vector3(-size, -size, size), new Vector3(-size, -size, -size), new RGB(90, 90, 90));
+        let bottom_1 = new Triangle(new Vector3(-1, -1, -1), new Vector3(1, -1, -1), new Vector3(1, -1, 1), new RGB(130, 130, 130));
+        let bottom_2 = new Triangle(new Vector3(1, -1, 1), new Vector3(-1, -1, 1), new Vector3(-1, -1, -1), new RGB(90, 90, 90));
     
         this.mesh.push(back_1, back_2, front_1, front_2, left_1, left_2, right_1, right_2, top_1, top_2, bottom_1, bottom_2);
     }
 }
 
+class CustomMesh extends ObjectNode {
+    constructor(position: Vector3, rotation: Vector3, scale: Vector3, mesh: Array<Triangle>) {
+        super(position, rotation, scale);
+        this.mesh = mesh;
+    }
+}
 
 class Camera {
     // State
@@ -304,7 +302,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // Notes //
 // Directionality: y-up, right-handed (https://pbs.twimg.com/media/EmVSW5AW8AAoDD9.jpg:large)
 
-function unpackObjects(objects: Array<Object3D>) : Array<Triangle> {
+function unpackObjects(objects: Array<ObjectNode>) : Array<Triangle> {
     let triangles: Array<Triangle> = [];
 
     // Copies every triangle in all of the objects to be drawn (copied as the triangles will be mapped to screen space)
@@ -338,12 +336,9 @@ function makeMVPMatrix(camera: Camera) : Array<Array<number>> {
                              Math.sin(pitch_rad),
                              -Math.cos(yaw_rad)*Math.cos(pitch_rad)).add(camera.position);
 
-    // TODO: Current +y is down and -y is up (I believe the x axis is also inverted)
-    // TODO: I'll also have to make a matrix to world transform if I want to have any sort of objects
-
-    let z_axis = camera.position.minus(target);                  // The "forward" vector
+    let z_axis = camera.position.minus(target);                   // The "forward" vector
     let x_axis = new Vector3(0, -1, 0).cross(z_axis).normalize(); // The "right" vector
-    let y_axis = z_axis.cross(x_axis);                           // The "up" vector
+    let y_axis = z_axis.cross(x_axis);                            // The "up" vector
 
     let rotation = [[x_axis.x, y_axis.x, z_axis.x, 0],
                     [x_axis.y, y_axis.y, z_axis.y, 0],
@@ -441,7 +436,7 @@ function drawTriangle(triangle: Triangle) {
     ctx.closePath();
 }
 
-function render(camera: Camera, objects: Array<Object3D>) {
+function render(camera: Camera, objects: Array<ObjectNode>) {
     let unmapped_triangles = unpackObjects(objects);
 
     let mvp_matrix = makeMVPMatrix(camera);
@@ -465,29 +460,15 @@ let execute = true; // When false, the engine will stop running
 // Canvas
 let canvas: HTMLCanvasElement;
 let ctx: CanvasRenderingContext2D;
-const CANVAS_SIZE = new Vector2(1000, 580);
+const CANVAS_SIZE = new Vector2(1920, 1080); // Computer
+// const CANVAS_SIZE = new Vector2(1000, 580); // Laptop
 const DIST_SCALE = 0.1;
 
 // World
-let world_objects: Array<Object3D> = [];
+let world_objects: Array<ObjectNode> = [];
 let active_camera: Camera;
 
 function ready() {
-    // Init keyboard input
-    document.addEventListener("keydown", (ev) => {
-        // Checks if the key pressed is used to control the camera
-        if (CAMERA_CONTROLLER[ev.key]) {
-            CAMERA_CONTROLLER[ev.key].pressed = true;
-        }
-    });
-
-    document.addEventListener("keyup", (ev) => {
-        // Checks if the key pressed is used to control the camera
-        if (CAMERA_CONTROLLER[ev.key]) {
-            CAMERA_CONTROLLER[ev.key].pressed = false;
-        }
-    });
-
     // Init canvas and context
     let temp_canvas = document.getElementById("canvas");
     if (!temp_canvas || !(temp_canvas instanceof HTMLCanvasElement)) {
@@ -504,16 +485,47 @@ function ready() {
     canvas.width = CANVAS_SIZE.x;
     canvas.height = CANVAS_SIZE.y;
 
+    // Init keyboard input
+    document.addEventListener("keydown", (ev) => {
+        // Checks if the key pressed is used to control the camera
+        if (CAMERA_CONTROLLER[ev.key]) {
+            CAMERA_CONTROLLER[ev.key].pressed = true;
+        }
+        
+        if (TOGGLE_CONTROLLER[ev.key]) {
+            TOGGLE_CONTROLLER[ev.key].func();
+        }
+    });
+
+    document.addEventListener("keyup", (ev) => {
+        // Checks if the key pressed is used to control the camera
+        if (CAMERA_CONTROLLER[ev.key]) {
+            CAMERA_CONTROLLER[ev.key].pressed = false;
+        }
+    });
+
+    // Init mouse input (adapted from https://developer.mozilla.org/en-US/docs/Web/API/Pointer_Lock_API)
+    canvas.addEventListener("click", async () => {
+        if (!document.pointerLockElement) {
+            await canvas.requestPointerLock({
+                unadjustedMovement: true,
+            });
+        }
+    });
+    document.addEventListener("pointerlockchange", mouseCapture, false);
+
     // Init camera
     active_camera = new Camera();
     active_camera.fov = 90;
 
 
     // World objects
-    let square_1 = new Square(20, new Vector3(0, 20, 0), new Vector3(0, 0, 0));
-    square_1.translate(new Vector3(0, 10, 0));
+    let reference_box = new Box(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 2));
 
-    world_objects.push(square_1);
+    let box_1 = new Box(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(5, 5, 5));
+    box_1.translate(new Vector3(0, 0, 10));
+
+    world_objects.push(reference_box, box_1);
 
     process()
 }
@@ -530,31 +542,53 @@ async function process() {
 
 // - Input - //
 
-const ROTATE_SPEED = 1
-const MOVE_SPEED = 1
+const BASE_ROTATE_SPEED = 1;
+let rotate_speed = BASE_ROTATE_SPEED;
+const BASE_MOVE_SPEED = 0.25;
+let move_speed = BASE_MOVE_SPEED;
+
+const MOUSE_X_SENS = 0.1;
+const MOUSE_Y_SENS = 0.11;
 
 // Used to track all of the current keys pressed (allowing for multiple inputs at once)
 // Each key's function is then executed if the key is pressed in executeMoves()
-const CAMERA_CONTROLLER: {[key:string]: {pressed: boolean; func: (camera: Camera) => void;}} = {
+const CAMERA_CONTROLLER: {[key: string]: {pressed: boolean; func: (camera: Camera) => void;}} = {
     // Orientation
-    "ArrowUp": {pressed: false, func: (camera: Camera) => camera.rotate(new Vector2(0, ROTATE_SPEED))},    // Look up
-    "ArrowDown": {pressed: false, func: (camera: Camera) => camera.rotate(new Vector2(0, -ROTATE_SPEED))}, // Look down
-    "ArrowLeft": {pressed: false, func: (camera: Camera) => camera.rotate(new Vector2(-ROTATE_SPEED, 0))}, // Look left
-    "ArrowRight": {pressed: false, func: (camera: Camera) => camera.rotate(new Vector2(ROTATE_SPEED, 0))}, // Look right
+    "ArrowUp": {pressed: false, func: (camera: Camera) => camera.rotate(new Vector2(0, rotate_speed))},    // Look up
+    "ArrowDown": {pressed: false, func: (camera: Camera) => camera.rotate(new Vector2(0, -rotate_speed))}, // Look down
+    "ArrowLeft": {pressed: false, func: (camera: Camera) => camera.rotate(new Vector2(-rotate_speed, 0))}, // Look left
+    "ArrowRight": {pressed: false, func: (camera: Camera) => camera.rotate(new Vector2(rotate_speed, 0))}, // Look right
     // Position
-    "w": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(0, 0, MOVE_SPEED))},  // Forward
-    "a": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(-MOVE_SPEED, 0, 0))}, // Left
-    "s": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(0, 0, -MOVE_SPEED))}, // Back
-    "d": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(MOVE_SPEED, 0, 0))},  // Right
-    "q": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(0, -MOVE_SPEED, 0))}, // Down
-    "e": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(0, MOVE_SPEED, 0))},  // Up
+    "w": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(0, 0, move_speed))},  // Forward
+    "a": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(-move_speed, 0, 0))}, // Left
+    "s": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(0, 0, -move_speed))}, // Back
+    "d": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(move_speed, 0, 0))},  // Right
+    "q": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(0, -move_speed, 0))}, // Down
+    "e": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(0, move_speed, 0))},  // Up
+}
+
+const TOGGLE_CONTROLLER: {[key: string]: {func: () => void;}} = {
+    "Shift": {func: () => move_speed = BASE_MOVE_SPEED*2},
+    "Control": {func: () => move_speed = BASE_MOVE_SPEED},
+}
+
+function mouseCapture() {
+    if (document.pointerLockElement === canvas) {
+        document.addEventListener("mousemove", mouseRotateCamera, false);
+    } else {
+        document.removeEventListener("mousemove", mouseRotateCamera, false);
+    }
+}
+
+function mouseRotateCamera(ev: MouseEvent) {
+    active_camera.rotate(new Vector2(ev.movementX*MOUSE_X_SENS, -ev.movementY*MOUSE_Y_SENS))
 }
 
 // Executes all moves based upon current inputs
 function executeMoves() {
     // Derived from (https://medium.com/@dovern42/handling-multiple-key-presses-at-once-in-vanilla-javascript-for-game-controllers-6dcacae931b7)
     Object.keys(CAMERA_CONTROLLER).forEach(key => {
-        CAMERA_CONTROLLER[key].pressed && CAMERA_CONTROLLER[key].func(active_camera)
+        CAMERA_CONTROLLER[key].pressed && CAMERA_CONTROLLER[key].func(active_camera);
     })
 }
  
