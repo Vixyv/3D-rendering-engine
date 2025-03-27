@@ -1,4 +1,4 @@
-// - Classes - //
+// - Math Classes - //
 
 class Vector2 {
     x: number = 0;
@@ -25,6 +25,7 @@ class Vector3 {
 
     add(vector: Vector3) { return new Vector3(this.x+vector.x, this.y+vector.y, this.z+vector.z); }
     minus(vector: Vector3) { return new Vector3(this.x-vector.x, this.y-vector.y, this.z-vector.z); }
+    scale(scalar: number) { return new Vector3(this.x*scalar, this.y*scalar, this.z*scalar); }
     vecMult(vector: Vector3) { return new Vector3(this.x*vector.x, this.y*vector.y, this.z*vector.z); }
     // Column major
     matrixMult(matrix: Array<Array<number>>) {
@@ -71,6 +72,37 @@ class Vector4 {
     }
 }
 
+class Quanternion {
+    x: number = 0;
+    y: number = 0;
+    z: number = 0;
+    w: number = 0;
+
+    constructor(x?: number, y?: number, z?: number, w?: number) {
+        this.x = x === undefined ? this.x : x;
+        this.y = y === undefined ? this.y : y;
+        this.z = z === undefined ? this.z : z;
+        this.w = w === undefined ? this.w : w;
+    }
+
+    normalize() {
+        let length = Math.sqrt(this.x**2 + this.y**2 + this.z*2 + this.w**2)
+        return new Quanternion(this.x/length, this.y/length, this.z/length, this.w/length)
+    }
+
+    // Order: This Quanternion * Different Quanternion
+    quanMult(quan: Quanternion) {
+        return new Quanternion(
+            this.w*quan.x + quan.w*this.x + this.y*quan.z - this.z*quan.y,
+            this.w*quan.y + quan.w*this.y + this.z*quan.x - this.x*quan.z,
+            this.w*quan.z + quan.w*this.z + this.x*quan.y - this.y*quan.x,
+            this.w*quan.w - this.x*quan.x - this.y*quan.z - this.z*quan.z
+        )
+    }
+}
+
+// - Object Classes - //
+
 class RGB {
     r: number;
     g: number;
@@ -85,7 +117,6 @@ class RGB {
     toStr() { return `rgb(${this.r}, ${this.g}, ${this.b})` }
 }
 
-// Used for meshes
 class Triangle {
     vert_1: Vector3;
     vert_2: Vector3;
@@ -131,10 +162,29 @@ class ObjectNode {
 
     #modelToWorld(vector: Vector3) : Vector3 {
         // 1. Scale
-        // TODO 2. Rotate  Later
-        // 3. Translate
+        vector = vector.vecMult(this.scale);
 
-        return vector.vecMult(this.scale).add(this.position);
+        // 2. Rotate
+        let rad_rotation = this.rotation.scale(Math.PI/360); // Divided by 360 because every angle needs to be halved
+
+        // Derived from https://www.youtube.com/watch?v=bKd2lPjl92c
+        let quanternion_y_rot = new Quanternion(0, Math.sin(rad_rotation.y), 0, Math.cos(rad_rotation.y));
+        let quanternion_x_rot = new Quanternion(Math.sin(rad_rotation.x), 0, 0, Math.cos(rad_rotation.x));
+        let quanternion_z_rot = new Quanternion(0, 0, Math.sin(rad_rotation.z), Math.cos(rad_rotation.z));
+
+        let quanternion_rot = quanternion_y_rot.quanMult(quanternion_x_rot).quanMult(quanternion_z_rot);
+        quanternion_rot = quanternion_rot.normalize();
+        let quanternion_rot_conj = new Quanternion(-quanternion_rot.x, -quanternion_rot.y, -quanternion_rot.z, quanternion_rot.w);
+
+        let vector_quanternion = new Quanternion(vector.x, vector.y, vector.z, 0);
+        vector_quanternion = quanternion_rot.quanMult(vector_quanternion).quanMult(quanternion_rot_conj);
+
+        vector.x = vector_quanternion.x;
+        vector.y = vector_quanternion.y;
+        vector.z = vector_quanternion.z;
+
+        // 3. Translate
+        return vector.add(this.position);
     }
 
     // Physics Functions //
@@ -147,53 +197,13 @@ class ObjectNode {
     }
 }
 
-class Box extends ObjectNode {
-    constructor(position: Vector3, rotation: Vector3, scale: Vector3) {
-        super(position, rotation, scale);
-        this.#constructMesh();
-    }
-
-    // Creates all the triangles of the squares and appends them to the square's mesh
-    #constructMesh() {
-        // Along z
-        let back_1 = new Triangle(new Vector3(-1, -1, 1), new Vector3(-1, 1, 1), new Vector3(1, 1, 1), new RGB(255, 0, 0));
-        let back_2 = new Triangle(new Vector3(1, 1, 1), new Vector3(1, -1, 1), new Vector3(-1, -1, 1), new RGB(200, 0, 55));
-
-        let front_1 = new Triangle(new Vector3(1, -1, -1), new Vector3(-1, 1, -1), new Vector3(1, 1, -1), new RGB(0, 255, 0));
-        let front_2 = new Triangle(new Vector3(-1, 1, -1), new Vector3(1, -1, -1), new Vector3(-1, -1, -1), new RGB(55, 200, 0));
-
-        // Along x
-        let left_1 = new Triangle(new Vector3(-1, -1, 1), new Vector3(-1, 1, 1), new Vector3(-1, -1, -1), new RGB(0, 0, 255));
-        let left_2 = new Triangle(new Vector3(-1, -1, -1), new Vector3(-1, 1, -1), new Vector3(-1, 1, 1), new RGB(0, 55, 200));
-
-        let right_1 = new Triangle(new Vector3(1, -1, 1), new Vector3(1, -1, -1), new Vector3(1, 1, -1), new RGB(255, 255, 0));
-        let right_2 = new Triangle(new Vector3(1, 1, -1), new Vector3(1, 1, 1), new Vector3(1, -1, 1), new RGB(255, 200, 0));
-
-        // Along y
-        let top_1 = new Triangle(new Vector3(-1, 1, -1), new Vector3(1, 1, -1), new Vector3(-1, 1, 1), new RGB(210, 210, 210));
-        let top_2 = new Triangle(new Vector3(1, 1, -1), new Vector3(1, 1, 1), new Vector3(-1, 1, 1), new RGB(170, 170, 170));
-
-        let bottom_1 = new Triangle(new Vector3(-1, -1, -1), new Vector3(1, -1, -1), new Vector3(1, -1, 1), new RGB(130, 130, 130));
-        let bottom_2 = new Triangle(new Vector3(1, -1, 1), new Vector3(-1, -1, 1), new Vector3(-1, -1, -1), new RGB(90, 90, 90));
-    
-        this.mesh.push(back_1, back_2, front_1, front_2, left_1, left_2, right_1, right_2, top_1, top_2, bottom_1, bottom_2);
-    }
-}
-
-class CustomMesh extends ObjectNode {
-    constructor(position: Vector3, rotation: Vector3, scale: Vector3, mesh: Array<Triangle>) {
-        super(position, rotation, scale);
-        this.mesh = mesh;
-    }
-}
-
 class Camera {
     // State
     position: Vector3 = new Vector3(0, 0, 0);
     view_angle: Vector2 = new Vector2(0, 0); // (yaw, pitch) in degrees
 
     // Default settings (if near, far, or fov change, the projection matrix must be updated)
-    #near: number = 0.01;
+    #near: number = 1;
         set near(value: number) { this.#near = value; this.#makePerspectiveProjectionMatrix(); }
     #far: number = 1500;
         set far(value: number) { this.#far = value; this.#makePerspectiveProjectionMatrix(); }
@@ -260,6 +270,64 @@ class Camera {
 
     // Moves the camera relative to the world axes
     translate(vector: Vector3) { this.position = this.position.add(vector) }
+}
+
+// - Shapes - //
+
+class Box extends ObjectNode {
+    constructor(position: Vector3, rotation: Vector3, scale: Vector3) {
+        super(position, rotation, scale);
+        this.#constructMesh();
+    }
+
+    // Creates all the triangles of the squares and appends them to the square's mesh
+    #constructMesh() {
+        // Along z
+        let back_1 = new Triangle(new Vector3(-1, -1, 1), new Vector3(-1, 1, 1), new Vector3(1, 1, 1), new RGB(255, 0, 0));
+        let back_2 = new Triangle(new Vector3(1, 1, 1), new Vector3(1, -1, 1), new Vector3(-1, -1, 1), new RGB(200, 0, 55));
+
+        let front_1 = new Triangle(new Vector3(1, -1, -1), new Vector3(-1, 1, -1), new Vector3(1, 1, -1), new RGB(0, 255, 0));
+        let front_2 = new Triangle(new Vector3(-1, 1, -1), new Vector3(1, -1, -1), new Vector3(-1, -1, -1), new RGB(55, 200, 0));
+
+        // Along x
+        let left_1 = new Triangle(new Vector3(-1, -1, 1), new Vector3(-1, 1, 1), new Vector3(-1, -1, -1), new RGB(0, 0, 255));
+        let left_2 = new Triangle(new Vector3(-1, -1, -1), new Vector3(-1, 1, -1), new Vector3(-1, 1, 1), new RGB(0, 55, 200));
+
+        let right_1 = new Triangle(new Vector3(1, -1, 1), new Vector3(1, -1, -1), new Vector3(1, 1, -1), new RGB(255, 255, 0));
+        let right_2 = new Triangle(new Vector3(1, 1, -1), new Vector3(1, 1, 1), new Vector3(1, -1, 1), new RGB(255, 200, 0));
+
+        // Along y
+        let top_1 = new Triangle(new Vector3(-1, 1, -1), new Vector3(1, 1, -1), new Vector3(-1, 1, 1), new RGB(210, 210, 210));
+        let top_2 = new Triangle(new Vector3(1, 1, -1), new Vector3(1, 1, 1), new Vector3(-1, 1, 1), new RGB(170, 170, 170));
+
+        let bottom_1 = new Triangle(new Vector3(-1, -1, -1), new Vector3(1, -1, -1), new Vector3(1, -1, 1), new RGB(130, 130, 130));
+        let bottom_2 = new Triangle(new Vector3(1, -1, 1), new Vector3(-1, -1, 1), new Vector3(-1, -1, -1), new RGB(90, 90, 90));
+    
+        this.mesh.push(back_1, back_2, front_1, front_2, left_1, left_2, right_1, right_2, top_1, top_2, bottom_1, bottom_2);
+    }
+}
+
+class Plane extends ObjectNode {
+    constructor(position: Vector3, rotation: Vector3, scale: Vector3) {
+        super(position, rotation, scale);
+        this.#constructMesh();
+    }
+
+    // Creates all the triangles of the squares and appends them to the square's mesh
+    #constructMesh() {
+        // Along z
+        let tri_1 = new Triangle(new Vector3(-1, 1, 0), new Vector3(1, 1, 0), new Vector3(1, -1, 0), new RGB(255, 0, 0));
+        let tri_2 = new Triangle(new Vector3(-1, 1, 0), new Vector3(1, -1, 0), new Vector3(-1, -1, 0), new RGB(200, 0, 55));
+    
+        this.mesh.push(tri_1, tri_2);
+    }
+}
+
+class CustomMesh extends ObjectNode {
+    constructor(position: Vector3, rotation: Vector3, scale: Vector3, mesh: Array<Triangle>) {
+        super(position, rotation, scale);
+        this.mesh = mesh;
+    }
 }
 
 // - Tool Functions - //
@@ -446,45 +514,28 @@ function render(camera: Camera, objects: Array<ObjectNode>) {
 
     drawSkyBox();
 
+    // Ensures ground is drawn first (a bit of a work around)
+    for (let i=0; i<2; i++) {
+        drawTriangle(ordered_triangles[0]);
+        ordered_triangles.splice(0, 1);
+    }
+
     for (let tri=0; tri<ordered_triangles.length; tri++) {
         drawTriangle(ordered_triangles[tri])
     }
 }
 
-// - Physics - //
+// - Input - //
 
-// - Init - //
+const BASE_ROTATE_SPEED = 1;
+let rotate_speed = BASE_ROTATE_SPEED;
+const BASE_MOVE_SPEED = 0.25;
+let move_speed = BASE_MOVE_SPEED;
 
-let execute = true; // When false, the engine will stop running
+const MOUSE_X_SENS = 0.1;
+const MOUSE_Y_SENS = 0.11;
 
-// Canvas
-let canvas: HTMLCanvasElement;
-let ctx: CanvasRenderingContext2D;
-const CANVAS_SIZE = new Vector2(1920, 1080); // Computer
-// const CANVAS_SIZE = new Vector2(1000, 580); // Laptop
-const DIST_SCALE = 0.1;
-
-// World
-let world_objects: Array<ObjectNode> = [];
-let active_camera: Camera;
-
-function ready() {
-    // Init canvas and context
-    let temp_canvas = document.getElementById("canvas");
-    if (!temp_canvas || !(temp_canvas instanceof HTMLCanvasElement)) {
-        throw new Error("Failed to get canvas.");
-    }
-    canvas = temp_canvas;
-
-    let temp_ctx = canvas.getContext("2d");
-    if (!temp_ctx || !(temp_ctx instanceof CanvasRenderingContext2D)) {
-        throw new Error("Failed to get 2D context.");
-    }
-    ctx = temp_ctx;
-
-    canvas.width = CANVAS_SIZE.x;
-    canvas.height = CANVAS_SIZE.y;
-
+function inputInit() {
     // Init keyboard input
     document.addEventListener("keydown", (ev) => {
         // Checks if the key pressed is used to control the camera
@@ -513,42 +564,7 @@ function ready() {
         }
     });
     document.addEventListener("pointerlockchange", mouseCapture, false);
-
-    // Init camera
-    active_camera = new Camera();
-    active_camera.fov = 90;
-
-
-    // World objects
-    let reference_box = new Box(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 2));
-
-    let box_1 = new Box(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(5, 5, 5));
-    box_1.translate(new Vector3(0, 0, 10));
-
-    world_objects.push(reference_box, box_1);
-
-    process()
 }
-
-// Runs every frame when the game is started
-async function process() {
-    while (execute) {
-        render(active_camera, world_objects);
-        executeMoves()
-
-        await sleep(10); // 100 fps
-    }
-}
-
-// - Input - //
-
-const BASE_ROTATE_SPEED = 1;
-let rotate_speed = BASE_ROTATE_SPEED;
-const BASE_MOVE_SPEED = 0.25;
-let move_speed = BASE_MOVE_SPEED;
-
-const MOUSE_X_SENS = 0.1;
-const MOUSE_Y_SENS = 0.11;
 
 // Used to track all of the current keys pressed (allowing for multiple inputs at once)
 // Each key's function is then executed if the key is pressed in executeMoves()
@@ -591,4 +607,70 @@ function executeMoves() {
         CAMERA_CONTROLLER[key].pressed && CAMERA_CONTROLLER[key].func(active_camera);
     })
 }
- 
+
+// - Init - //
+
+let execute = true; // When false, the engine will stop running
+
+// Canvas
+let canvas: HTMLCanvasElement;
+let ctx: CanvasRenderingContext2D;
+const CANVAS_SIZE = new Vector2(1920, 1080); // Computer
+// const CANVAS_SIZE = new Vector2(1000, 580); // Laptop
+const DIST_SCALE = 0.1;
+
+function canvasInit() {
+    // Init canvas and context
+    let temp_canvas = document.getElementById("canvas");
+    if (!temp_canvas || !(temp_canvas instanceof HTMLCanvasElement)) {
+        throw new Error("Failed to get canvas.");
+    }
+    canvas = temp_canvas;
+
+    let temp_ctx = canvas.getContext("2d");
+    if (!temp_ctx || !(temp_ctx instanceof CanvasRenderingContext2D)) {
+        throw new Error("Failed to get 2D context.");
+    }
+    ctx = temp_ctx;
+
+    canvas.width = CANVAS_SIZE.x;
+    canvas.height = CANVAS_SIZE.y;
+}
+
+// World
+let world_objects: Array<ObjectNode> = [];
+let active_camera: Camera;
+
+// Creates and instantiates all objects
+function worldInit() {
+    // Init camera
+    active_camera = new Camera();
+
+    // World objects
+    let ground = new Plane(new Vector3(0, -10, 0), new Vector3(90, 0, 0), new Vector3(100, 100, 0))
+
+    let reference_box = new Box(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 2));
+
+    let box_1 = new Box(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(5, 5, 5));
+    box_1.translate(new Vector3(0, 0, 10));
+
+    world_objects.push(ground, reference_box, box_1);
+}
+
+function ready() {
+    canvasInit()
+    inputInit()
+    worldInit()
+
+    process()
+}
+
+// Runs every frame when the game is started
+async function process() {
+    while (execute) {
+        render(active_camera, world_objects);
+        executeMoves()
+
+        await sleep(10); // 100 fps
+    }
+}
