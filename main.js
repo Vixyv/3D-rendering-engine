@@ -168,9 +168,9 @@ class Camera {
         this.view_angle = new Vector2(0, 0); // (yaw, pitch) in degrees
         // Default settings (if near, far, or fov change, the projection matrix must be updated)
         _Camera_near.set(this, 1);
-        _Camera_far.set(this, 1500);
+        _Camera_far.set(this, 1000);
         _Camera_fov.set(this, 90);
-        this.pitch_clamp = new Vector2(-90, 90); // Lower and upper vertical clamps on
+        this.pitch_clamp = new Vector2(-89, 89); // Lower and upper vertical clamps on
         // Perspective projection matrix
         this.projection_matrix = matrix(4, 4);
         this.position = position === undefined ? this.position : position;
@@ -323,16 +323,34 @@ function makeMVPMatrix(camera) {
         [-camera.position.x, -camera.position.y, -camera.position.z, 1]];
     return matrixMult(translation, rotation);
 }
+function pointBehindCamera(camera, vector) {
+    let pitch_rad = -camera.view_angle.y * (Math.PI / 180);
+    let yaw_rad = -camera.view_angle.x * (Math.PI / 180);
+    let target = new Vector3(Math.sin(yaw_rad) * Math.cos(pitch_rad), Math.sin(pitch_rad), -Math.cos(yaw_rad) * Math.cos(pitch_rad));
+    if (target.dot(vector.minus(camera.position)) > 0) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
 function worldToScreen(camera, mvp_matrix, vector) {
     let vec_4 = new Vector4(vector.x, vector.y, vector.z, 1);
     vec_4 = vec_4.matrixMult(mvp_matrix);
     vec_4.w = 1;
     vec_4 = vec_4.matrixMult(camera.projection_matrix);
+    if (pointBehindCamera(camera, vector)) {
+        vec_4.w = -vec_4.w * 0.1;
+    }
     if (vec_4.w != 0) {
         vec_4.x = vec_4.x / (vec_4.w);
         vec_4.y = vec_4.y / (vec_4.w);
-        // vec_4.z = vec_4.z/(vec_4.w);
+        vec_4.z = vec_4.z / (vec_4.w);
     }
+    // if (vec_4.z > 2) {
+    //     // vec_4.x = -vec_4.x;
+    //     vec_4.y = -vec_4.y;
+    // }
     // Map to canvas
     vec_4.x = CANVAS_SIZE.x * 0.5 * (vec_4.x + 1);
     vec_4.y = CANVAS_SIZE.y * 0.5 * (1 - vec_4.y);
@@ -348,23 +366,23 @@ function orderTriangles(triangles) {
         // Checks if the triangles are behind the camera
         // (Technically z > 0 is behind the camera, but the floating point
         // rendering bug can occur at z values of -0.5)
-        if (vert_1.z > -5 || vert_2.z > -5 || vert_3.z > -5) {
-            triangles.splice(tri, 1);
-            tri--;
-            continue;
-        }
-        // Checks for the floating point rendering error using sign analysis (only when Math.abs(vert_1.x) > 1000)
-        // When looking straight at a vector and rotating, the x value will increase faster and faster (trig functions).
-        // If the angle sheer enough, floating point error will change the sign of the x value resulting
-        // in a triangle appearing across the screen.
-        let sign_sum = Math.abs(Math.sign(vert_1.x) + Math.sign(vert_2.x) + Math.sign(vert_3.x));
-        if (Math.abs(vert_1.x) > 2000 && sign_sum < 3) {
-            triangles.splice(tri, 1);
-            tri--;
-            continue;
-        }
+        // if (vert_1.z > -5 || vert_2.z > -5 || vert_3.z > -5) {
+        //     triangles.splice(tri, 1);
+        //     tri--;
+        //     continue;
+        // }
+        // // Checks for the floating point rendering error using sign analysis (only when Math.abs(vert_1.x) > 1000)
+        // // When looking straight at a vector and rotating, the x value will increase faster and faster (trig functions).
+        // // If the angle sheer enough, floating point error will change the sign of the x value resulting
+        // // in a triangle appearing across the screen.
+        // let sign_sum = Math.abs(Math.sign(vert_1.x) + Math.sign(vert_2.x) + Math.sign(vert_3.x));
+        // if (Math.abs(vert_1.x) > 2000 && sign_sum < 3) {
+        //     triangles.splice(tri, 1);
+        //     tri--;
+        //     continue;
+        // }
         // Averages the distance of the triangle
-        av_z_dist = (vert_1.z + vert_2.z + vert_3.z) / 3;
+        av_z_dist = Math.min(vert_1.z, Math.min(vert_2.z, vert_3.z));
         av_z_dists.push(av_z_dist);
     }
     // Sorts by average z distance (farthest to closest) (fyi, the values are negative)
@@ -394,11 +412,12 @@ function render(camera, objects) {
     let mapped_triangles = trianglesToClipSpace(camera, mvp_matrix, unmapped_triangles);
     let ordered_triangles = orderTriangles(mapped_triangles);
     drawSkyBox();
+    console.log(camera.view_angle);
     // Ensures ground is drawn first (a bit of a work around)
-    for (let i = 0; i < 2; i++) {
-        drawTriangle(ordered_triangles[0]);
-        ordered_triangles.splice(0, 1);
-    }
+    // for (let i=0; i<2; i++) {
+    //     drawTriangle(ordered_triangles[0]);
+    //     ordered_triangles.splice(0, 1);
+    // }
     for (let tri = 0; tri < ordered_triangles.length; tri++) {
         drawTriangle(ordered_triangles[tri]);
     }
@@ -480,8 +499,8 @@ let execute = true; // When false, the engine will stop running
 // Canvas
 let canvas;
 let ctx;
-const CANVAS_SIZE = new Vector2(1920, 1080); // Computer
-// const CANVAS_SIZE = new Vector2(1000, 580); // Laptop
+// const CANVAS_SIZE = new Vector2(1920, 1080); // Computer
+const CANVAS_SIZE = new Vector2(1000, 580); // Laptop
 const DIST_SCALE = 0.1;
 function canvasInit() {
     // Init canvas and context
@@ -506,7 +525,7 @@ function worldInit() {
     // Init camera
     active_camera = new Camera();
     // World objects
-    let ground = new Plane(new Vector3(0, -10, 0), new Vector3(90, 0, 0), new Vector3(100, 100, 0));
+    let ground = new Plane(new Vector3(0, -10, 0), new Vector3(90, 0, 0), new Vector3(10, 10, 0));
     let reference_box = new Box(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 2));
     let box_1 = new Box(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(5, 5, 5));
     box_1.translate(new Vector3(0, 0, 10));
