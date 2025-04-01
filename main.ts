@@ -28,7 +28,7 @@ class Vector3 {
     scale(scalar: number) { return new Vector3(this.x*scalar, this.y*scalar, this.z*scalar); }
     vecMult(vector: Vector3) { return new Vector3(this.x*vector.x, this.y*vector.y, this.z*vector.z); }
     // Column major
-    matrixMult(matrix: Array<Array<number>>) {
+    matrixMult(matrix: number[][]) {
         return new Vector3(
             this.x*matrix[0][0] + this.y*matrix[1][0] + this.z*matrix[2][0],
             this.x*matrix[0][1] + this.y*matrix[1][1] + this.z*matrix[2][1],
@@ -42,9 +42,10 @@ class Vector3 {
                            this.z*vector.x - this.x*vector.z,
                            this.x*vector.y - this.y*vector.x)
     }
+    magnitude() { return Math.sqrt(this.x**2 + this.y**2 + this.z**2)}
     normalize() { 
-        let length = Math.sqrt(this.x**2 + this.y**2 + this.z**2);
-        return new Vector3(this.x/length, this.y/length, this.z/length)
+        let magnitude = this.magnitude();
+        return new Vector3(this.x/magnitude, this.y/magnitude, this.z/magnitude)
     }
 }
 
@@ -62,7 +63,7 @@ class Vector4 {
     }
 
     // Column major
-    matrixMult(matrix: Array<Array<number>>) {
+    matrixMult(matrix: number[][]) {
         return new Vector4(
             this.x*matrix[0][0] + this.y*matrix[1][0] + this.z*matrix[2][0] + this.w*matrix[3][0],
             this.x*matrix[0][1] + this.y*matrix[1][1] + this.z*matrix[2][1] + this.w*matrix[3][1],
@@ -102,100 +103,6 @@ class Quanternion {
 }
 
 // - Object Classes - //
-
-class RGB {
-    r: number;
-    g: number;
-    b: number;
-
-    constructor(red: number, green: number, blue: number) {
-        this.r = red;
-        this.g = green;
-        this.b = blue;
-    }
-
-    toStr() { return `rgb(${this.r}, ${this.g}, ${this.b})` }
-}
-
-class Triangle {
-    vert_1: Vector3;
-    vert_2: Vector3;
-    vert_3: Vector3;
-    colour: RGB;
-
-    constructor(vert_1: Vector3, vert_2: Vector3, vert_3: Vector3, colour: RGB) {
-        this.vert_1 = vert_1;
-        this.vert_2 = vert_2;
-        this.vert_3 = vert_3;
-        this.colour = colour;
-    }
-}
-
-class ObjectNode {
-    position: Vector3;
-    rotation: Vector3;
-    scale: Vector3;
-    mesh: Array<Triangle> = [];
-
-    // Only used if a custom mesh is given
-    constructor(position: Vector3, rotation: Vector3, scale: Vector3) {
-        this.position = position;
-        this.rotation = rotation;
-        this.scale = scale;
-    }
-
-    worldPositionTriangles() : Array<Triangle> {
-        let world_pos_triangles = []
-
-        for (let tri = 0; tri<this.mesh.length; tri++) {
-            let vert_1 = this.#modelToWorld(this.mesh[tri].vert_1);
-            let vert_2 = this.#modelToWorld(this.mesh[tri].vert_2);
-            let vert_3 = this.#modelToWorld(this.mesh[tri].vert_3);
-
-            let colour = this.mesh[tri].colour;
-
-            world_pos_triangles.push(new Triangle(vert_1, vert_2, vert_3, colour))
-        }
-
-        return world_pos_triangles
-    }
-
-    #modelToWorld(vector: Vector3) : Vector3 {
-        // 1. Scale
-        vector = vector.vecMult(this.scale);
-
-        // 2. Rotate
-        let rad_rotation = this.rotation.scale(Math.PI/360); // Divided by 360 because every angle needs to be halved
-
-        // Derived from https://www.youtube.com/watch?v=bKd2lPjl92c
-        let quanternion_y_rot = new Quanternion(0, Math.sin(rad_rotation.y), 0, Math.cos(rad_rotation.y));
-        let quanternion_x_rot = new Quanternion(Math.sin(rad_rotation.x), 0, 0, Math.cos(rad_rotation.x));
-        let quanternion_z_rot = new Quanternion(0, 0, Math.sin(rad_rotation.z), Math.cos(rad_rotation.z));
-
-        let quanternion_rot = quanternion_y_rot.quanMult(quanternion_x_rot).quanMult(quanternion_z_rot);
-        quanternion_rot = quanternion_rot.normalize();
-        let quanternion_rot_conj = new Quanternion(-quanternion_rot.x, -quanternion_rot.y, -quanternion_rot.z, quanternion_rot.w);
-
-        let vector_quanternion = new Quanternion(vector.x, vector.y, vector.z, 0);
-        vector_quanternion = quanternion_rot.quanMult(vector_quanternion).quanMult(quanternion_rot_conj);
-
-        vector.x = vector_quanternion.x;
-        vector.y = vector_quanternion.y;
-        vector.z = vector_quanternion.z;
-
-        // 3. Translate
-        return vector.add(this.position);
-    }
-
-    // Physics Functions //
-    translate(vector: Vector3) {
-        this.position = this.position.add(vector);
-    }
-
-    rotate(vector: Vector3) {
-        this.rotation = this.rotation.add(vector);
-    }
-}
 
 class Camera {
     // State
@@ -272,61 +179,273 @@ class Camera {
     translate(vector: Vector3) { this.position = this.position.add(vector) }
 }
 
+class RGB {
+    r: number;
+    g: number;
+    b: number;
+
+    constructor(red: number, green: number, blue: number) {
+        this.r = red;
+        this.g = green;
+        this.b = blue;
+    }
+
+    toStr() { return `rgb(${this.r}, ${this.g}, ${this.b})` }
+}
+
+class Triangle {
+    vert_1: Vector3;
+    vert_2: Vector3;
+    vert_3: Vector3;
+    colour: RGB = new RGB(0, 0, 0);
+
+    constructor(vert_1: Vector3, vert_2: Vector3, vert_3: Vector3, colour?: RGB) {
+        this.vert_1 = vert_1;
+        this.vert_2 = vert_2;
+        this.vert_3 = vert_3;
+        this.colour = colour === undefined ? this.colour : colour;
+    }
+
+    depth() { return (this.vert_1.z+this.vert_2.z+this.vert_3.z)/3; }
+}
+
+class ObjectNode {
+    position: Vector3;
+    rotation: Vector3;
+    scale: Vector3;
+
+    mesh: Triangle[] = [];
+    texture: RGB[];
+
+    // Only used if a custom mesh is given
+    constructor(position: Vector3, rotation: Vector3, scale: Vector3, texture: RGB[]) {
+        this.position = position;
+        this.rotation = rotation;
+        this.scale = scale;
+        this.texture = texture;
+    }
+
+    // Allows for the texture to be of any length and still safely map to the mesh
+    applyTexture() {
+        for (let tri=0; tri<this.mesh.length; tri++) {
+            this.mesh[tri].colour = this.texture[tri % this.texture.length];
+        }
+    }
+
+    worldPositionTriangles() : Triangle[] {
+        let world_pos_triangles = []
+
+        for (let tri = 0; tri<this.mesh.length; tri++) {
+            let vert_1 = this.#modelToWorld(this.mesh[tri].vert_1);
+            let vert_2 = this.#modelToWorld(this.mesh[tri].vert_2);
+            let vert_3 = this.#modelToWorld(this.mesh[tri].vert_3);
+
+            let colour = this.mesh[tri].colour;
+
+            world_pos_triangles.push(new Triangle(vert_1, vert_2, vert_3, colour))
+        }
+
+        return world_pos_triangles
+    }
+
+    #modelToWorld(vector: Vector3) : Vector3 {
+        // 1. Scale
+        vector = vector.vecMult(this.scale);
+
+        // 2. Rotate
+        let rad_rotation = this.rotation.scale(Math.PI/360); // Divided by 360 because every angle needs to be halved
+
+        // Derived from https://www.youtube.com/watch?v=bKd2lPjl92c
+        let quanternion_y_rot = new Quanternion(0, Math.sin(rad_rotation.y), 0, Math.cos(rad_rotation.y));
+        let quanternion_x_rot = new Quanternion(Math.sin(rad_rotation.x), 0, 0, Math.cos(rad_rotation.x));
+        let quanternion_z_rot = new Quanternion(0, 0, Math.sin(rad_rotation.z), Math.cos(rad_rotation.z));
+
+        let quanternion_rot = quanternion_y_rot.quanMult(quanternion_x_rot).quanMult(quanternion_z_rot);
+        quanternion_rot = quanternion_rot.normalize();
+        let quanternion_rot_conj = new Quanternion(-quanternion_rot.x, -quanternion_rot.y, -quanternion_rot.z, quanternion_rot.w);
+
+        let vector_quanternion = new Quanternion(vector.x, vector.y, vector.z, 0);
+        vector_quanternion = quanternion_rot.quanMult(vector_quanternion).quanMult(quanternion_rot_conj);
+
+        vector.x = vector_quanternion.x;
+        vector.y = vector_quanternion.y;
+        vector.z = vector_quanternion.z;
+
+        // 3. Translate
+        return vector.add(this.position);
+    }
+
+    // Physics Functions //
+    translate(vector: Vector3) {
+        this.position = this.position.add(vector);
+    }
+
+    rotate(vector: Vector3) {
+        this.rotation = this.rotation.add(vector);
+    }
+}
+
 // - Shapes - //
 
 class Box extends ObjectNode {
-    constructor(position: Vector3, rotation: Vector3, scale: Vector3) {
-        super(position, rotation, scale);
-        this.#constructMesh();
+    constructor(position: Vector3, rotation: Vector3, scale: Vector3, texture: RGB[]) {
+        super(position, rotation, scale, texture);
+        this.#createMesh();
+        super.applyTexture();
     }
 
-    // Creates all the triangles of the squares and appends them to the square's mesh
-    #constructMesh() {
+    #createMesh() {
         // Along z
-        let back_1 = new Triangle(new Vector3(-1, -1, 1), new Vector3(-1, 1, 1), new Vector3(1, 1, 1), new RGB(255, 0, 0));
-        let back_2 = new Triangle(new Vector3(1, 1, 1), new Vector3(1, -1, 1), new Vector3(-1, -1, 1), new RGB(200, 0, 55));
+        let back_1 = new Triangle(new Vector3(-1, -1, 1), new Vector3(-1, 1, 1), new Vector3(1, 1, 1));
+        let back_2 = new Triangle(new Vector3(1, 1, 1), new Vector3(1, -1, 1), new Vector3(-1, -1, 1));
 
-        let front_1 = new Triangle(new Vector3(1, -1, -1), new Vector3(-1, 1, -1), new Vector3(1, 1, -1), new RGB(0, 255, 0));
-        let front_2 = new Triangle(new Vector3(-1, 1, -1), new Vector3(1, -1, -1), new Vector3(-1, -1, -1), new RGB(55, 200, 0));
+        let front_1 = new Triangle(new Vector3(1, -1, -1), new Vector3(-1, 1, -1), new Vector3(1, 1, -1));
+        let front_2 = new Triangle(new Vector3(-1, 1, -1), new Vector3(1, -1, -1), new Vector3(-1, -1, -1));
 
         // Along x
-        let left_1 = new Triangle(new Vector3(-1, -1, 1), new Vector3(-1, 1, 1), new Vector3(-1, -1, -1), new RGB(0, 0, 255));
-        let left_2 = new Triangle(new Vector3(-1, -1, -1), new Vector3(-1, 1, -1), new Vector3(-1, 1, 1), new RGB(0, 55, 200));
+        let left_1 = new Triangle(new Vector3(-1, -1, 1), new Vector3(-1, 1, 1), new Vector3(-1, -1, -1));
+        let left_2 = new Triangle(new Vector3(-1, -1, -1), new Vector3(-1, 1, -1), new Vector3(-1, 1, 1));
 
-        let right_1 = new Triangle(new Vector3(1, -1, 1), new Vector3(1, -1, -1), new Vector3(1, 1, -1), new RGB(255, 255, 0));
-        let right_2 = new Triangle(new Vector3(1, 1, -1), new Vector3(1, 1, 1), new Vector3(1, -1, 1), new RGB(255, 200, 0));
+        let right_1 = new Triangle(new Vector3(1, -1, 1), new Vector3(1, -1, -1), new Vector3(1, 1, -1));
+        let right_2 = new Triangle(new Vector3(1, 1, -1), new Vector3(1, 1, 1), new Vector3(1, -1, 1));
 
         // Along y
-        let top_1 = new Triangle(new Vector3(-1, 1, -1), new Vector3(1, 1, -1), new Vector3(-1, 1, 1), new RGB(210, 210, 210));
-        let top_2 = new Triangle(new Vector3(1, 1, -1), new Vector3(1, 1, 1), new Vector3(-1, 1, 1), new RGB(170, 170, 170));
+        let top_1 = new Triangle(new Vector3(-1, 1, -1), new Vector3(1, 1, -1), new Vector3(-1, 1, 1));
+        let top_2 = new Triangle(new Vector3(1, 1, -1), new Vector3(1, 1, 1), new Vector3(-1, 1, 1));
 
-        let bottom_1 = new Triangle(new Vector3(-1, -1, -1), new Vector3(1, -1, -1), new Vector3(1, -1, 1), new RGB(130, 130, 130));
-        let bottom_2 = new Triangle(new Vector3(1, -1, 1), new Vector3(-1, -1, 1), new Vector3(-1, -1, -1), new RGB(90, 90, 90));
+        let bottom_1 = new Triangle(new Vector3(-1, -1, -1), new Vector3(1, -1, -1), new Vector3(1, -1, 1));
+        let bottom_2 = new Triangle(new Vector3(1, -1, 1), new Vector3(-1, -1, 1), new Vector3(-1, -1, -1));
     
         this.mesh.push(back_1, back_2, front_1, front_2, left_1, left_2, right_1, right_2, top_1, top_2, bottom_1, bottom_2);
     }
 }
 
 class Plane extends ObjectNode {
-    constructor(position: Vector3, rotation: Vector3, scale: Vector3) {
-        super(position, rotation, scale);
-        this.#constructMesh();
+    constructor(position: Vector3, rotation: Vector3, scale: Vector3, texture: RGB[]) {
+        super(position, rotation, scale, texture);
+        this.#createMesh();
+        super.applyTexture();
     }
 
-    // Creates all the triangles of the squares and appends them to the square's mesh
-    #constructMesh() {
+    #createMesh() {
         // Along z
-        let tri_1 = new Triangle(new Vector3(-1, 1, 0), new Vector3(1, 1, 0), new Vector3(1, -1, 0), new RGB(255, 0, 0));
-        let tri_2 = new Triangle(new Vector3(-1, 1, 0), new Vector3(1, -1, 0), new Vector3(-1, -1, 0), new RGB(200, 0, 55));
+        let tri_1 = new Triangle(new Vector3(-1, 1, 0), new Vector3(1, 1, 0), new Vector3(1, -1, 0));
+        let tri_2 = new Triangle(new Vector3(-1, 1, 0), new Vector3(1, -1, 0), new Vector3(-1, -1, 0));
     
         this.mesh.push(tri_1, tri_2);
     }
 }
 
 class CustomMesh extends ObjectNode {
-    constructor(position: Vector3, rotation: Vector3, scale: Vector3, mesh: Array<Triangle>) {
-        super(position, rotation, scale);
+    constructor(position: Vector3, rotation: Vector3, scale: Vector3, mesh: Triangle[], texture: RGB[]) {
+        super(position, rotation, scale, texture);
         this.mesh = mesh;
+        super.applyTexture();
+    }
+}
+
+class Banana extends ObjectNode {
+    constructor(position: Vector3, rotation: Vector3, scale: Vector3, banana_colour?: RGB) {
+        super(position, rotation, scale, [new RGB(0, 0, 0)]);
+
+        let main_colour = banana_colour === undefined ? new RGB(250, 250, 55) : banana_colour;
+        this.texture = this.#createTexture(main_colour);
+
+        this.#createMesh();
+        super.applyTexture();
+    }
+
+    #createTexture(main_colour: RGB) : RGB[] {
+        return [...Array(10).fill(new RGB(45, 20, 0)), ...Array(28).fill(main_colour), ...Array(10).fill(new RGB(45, 20, 0))];
+    }
+
+    #createMesh() {
+        // Banana base
+        let base_end_1 = new Triangle(new Vector3(1, -4, -12), new Vector3(-1, -4, -12), new Vector3(-1, -6, -12), new RGB(45, 20, 0));
+        let base_end_2 = new Triangle(new Vector3(1, -4, -12), new Vector3(-1, -6, -12), new Vector3(1, -6, -12), new RGB(45, 20, 0));
+    
+        let base_top_1 = new Triangle(new Vector3(1, -4, -12), new Vector3(-1, -4, -12), new Vector3(-1, -4, -11), new RGB(45, 20, 0));
+        let base_top_2 = new Triangle(new Vector3(1, -4, -12), new Vector3(1, -4, -11), new Vector3(-1, -4, -11), new RGB(45, 20, 0));
+    
+        let base_bottom_1 = new Triangle(new Vector3(1, -6, -12), new Vector3(-1, -6, -12), new Vector3(-1, -6, -11), new RGB(45, 20, 0));
+        let base_bottom_2 = new Triangle(new Vector3(1, -6, -12), new Vector3(1, -6, -11), new Vector3(-1, -6, -11), new RGB(45, 20, 0));
+    
+        let base_left_1 = new Triangle(new Vector3(-1, -4, -11), new Vector3(-1, -4, -12), new Vector3(-1, -6, -11), new RGB(45, 20, 0));
+        let base_left_2 = new Triangle(new Vector3(-1, -4, -12), new Vector3(-1, -6, -12), new Vector3(-1, -6, -11), new RGB(45, 20, 0));
+    
+        let base_right_1 = new Triangle(new Vector3(1, -4, -11), new Vector3(1, -4, -12), new Vector3(1, -6, -11), new RGB(45, 20, 0));
+        let base_right_2 = new Triangle(new Vector3(1, -4, -12), new Vector3(1, -6, -12), new Vector3(1, -6, -11), new RGB(45, 20, 0));
+    
+        // Banana loop 1
+        let bottom_1_1 = new Triangle(new Vector3(1, -6, -11), new Vector3(-1, -6, -11), new Vector3(2, -7.5, -6), new RGB(250, 250, 55));
+        let bottom_1_2 = new Triangle(new Vector3(-1, -6, -11), new Vector3(2, -7.5, -6), new Vector3(-2, -7.5, -6), new RGB(250, 250, 55));
+    
+        let top_1_1 = new Triangle(new Vector3(1, -4, -11), new Vector3(-1, -4, -11), new Vector3(2, -4.5, -6), new RGB(250, 250, 55));
+        let top_1_2 = new Triangle(new Vector3(-1, -4, -11), new Vector3(2, -4.5, -6), new Vector3(-2, -4.5, -6), new RGB(250, 250, 55));
+    
+        let left_1_1 = new Triangle(new Vector3(-1, -4, -11), new Vector3(-1, -6, -11), new Vector3(-2, -7.5, -6), new RGB(250, 250, 55));
+        let left_1_2 = new Triangle(new Vector3(-1, -4, -11), new Vector3(-2, -4.5, -6), new Vector3(-2, -7.5, -6), new RGB(250, 250, 55));
+    
+        let right_1_1 = new Triangle(new Vector3(1, -4, -11), new Vector3(1, -6, -11), new Vector3(2, -7.5, -6), new RGB(250, 250, 55));
+        let right_1_2 = new Triangle(new Vector3(1, -4, -11), new Vector3(2, -4.5, -6), new Vector3(2, -7.5, -6), new RGB(250, 250, 55));
+    
+        // Banana loop 2
+        let bottom_2_1 = new Triangle(new Vector3(2, -7.5, -6), new Vector3(-2, -7.5, -6), new Vector3(2, -7, 0), new RGB(250, 250, 55));
+        let bottom_2_2 = new Triangle(new Vector3(-2, -7, 0), new Vector3(-2, -7.5, -6), new Vector3(2, -7, 0), new RGB(250, 250, 55));
+    
+        let top_2_1 = new Triangle(new Vector3(2, -4.5, -6), new Vector3(-2, -4.5, -6), new Vector3(2, -2, 0), new RGB(250, 250, 55));
+        let top_2_2 = new Triangle(new Vector3(-2, -4.5, -6), new Vector3(2, -2, 0), new Vector3(-2, -2, 0), new RGB(250, 250, 55));
+    
+        let left_2_1 = new Triangle(new Vector3(-2, -7.5, -6), new Vector3(-2, -4.5, -6), new Vector3(-2, -2, 0), new RGB(250, 250, 55));
+        let left_2_2 = new Triangle(new Vector3(-2, -7.5, -6), new Vector3(-2, -7, 0), new Vector3(-2, -2, 0), new RGB(250, 250, 55));
+    
+        let right_2_1 = new Triangle(new Vector3(2, -7.5, -6), new Vector3(2, -4.5, -6), new Vector3(2, -2, 0), new RGB(250, 250, 55));
+        let right_2_2 = new Triangle(new Vector3(2, -7.5, -6), new Vector3(2, -7, 0), new Vector3(2, -2, 0), new RGB(250, 250, 55));
+    
+        // Banana loop 3
+        let bottom_3_1 = new Triangle(new Vector3(-2, -7, 0), new Vector3(2, -7, 0), new Vector3(1.5, -3, 4), new RGB(250, 250, 55));
+        let bottom_3_2 = new Triangle(new Vector3(-2, -7, 0), new Vector3(-1.5, -3, 4), new Vector3(1.5, -3, 4), new RGB(250, 250, 55));
+    
+        let top_3_1 = new Triangle(new Vector3(-2, -2, 0), new Vector3(2, -2, 0), new Vector3(1, 1, 3), new RGB(250, 250, 55));
+        let top_3_2 = new Triangle(new Vector3(-2, -2, 0), new Vector3(-1, 1, 3), new Vector3(1, 1, 3), new RGB(250, 250, 55));
+    
+        let left_3_1 = new Triangle(new Vector3(-2, -7, 0), new Vector3(-2, -2, 0), new Vector3(-1.5, -3, 4), new RGB(250, 250, 55));
+        let right_3_1 = new Triangle(new Vector3(2, -7, 0), new Vector3(2, -2, 0), new Vector3(1.5, -3, 4), new RGB(250, 250, 55));
+    
+        // Banana loop 4 (no top)
+        let bottom_4_1 = new Triangle(new Vector3(-1.5, -3, 4), new Vector3(1.5, -3, 4), new Vector3(1, 0.5, 4.75), new RGB(250, 250, 55));
+        let bottom_4_2 = new Triangle(new Vector3(-1.5, -3, 4), new Vector3(-1, 0.5, 4.75), new Vector3(1, 0.5, 4.75), new RGB(250, 250, 55));
+    
+        let left_4_1 = new Triangle(new Vector3(-2, -2, 0), new Vector3(-1, 1, 3), new Vector3(-1.5, -3, 4), new RGB(250, 250, 55));
+        let left_4_2 = new Triangle(new Vector3(-1.5, -3, 4), new Vector3(-1, 0.5, 4.75), new Vector3(-1, 1, 3), new RGB(250, 250, 55));
+    
+        let right_4_1 = new Triangle(new Vector3(2, -2, 0), new Vector3(1, 1, 3), new Vector3(1.5, -3, 4), new RGB(250, 250, 55));
+        let right_4_2 = new Triangle(new Vector3(1.5, -3, 4), new Vector3(1, 0.5, 4.75), new Vector3(1, 1, 3), new RGB(250, 250, 55));
+    
+        // Banana stem
+        let stem_top_1 = new Triangle(new Vector3(-1, 1, 3), new Vector3(1, 1, 3), new Vector3(1, 4, 4), new RGB(45, 20, 0));
+        let stem_top_2 = new Triangle(new Vector3(-1, 1, 3), new Vector3(-1, 4, 4), new Vector3(1, 4, 4), new RGB(45, 20, 0));
+    
+        let stem_bottom_1 = new Triangle(new Vector3(-1, 0.5, 4.75), new Vector3(1, 0.5, 4.75), new Vector3(1, 3.5, 5.75), new RGB(45, 20, 0));
+        let stem_bottom_2 = new Triangle(new Vector3(-1, 0.5, 4.75), new Vector3(-1, 3.5, 5.75), new Vector3(1, 3.5, 5.75), new RGB(45, 20, 0));
+    
+        let stem_left_1 = new Triangle(new Vector3(-1, 1, 3), new Vector3(-1, 4, 4), new Vector3(-1, 3.5, 5.75), new RGB(45, 20, 0));
+        let stem_left_2 = new Triangle(new Vector3(-1, 1, 3), new Vector3(-1, 0.5, 4.75), new Vector3(-1, 3.5, 5.75), new RGB(45, 20, 0));
+    
+        let stem_right_1 = new Triangle(new Vector3(1, 1, 3), new Vector3(1, 4, 4), new Vector3(1, 3.5, 5.75), new RGB(45, 20, 0));
+        let stem_right_2 = new Triangle(new Vector3(1, 1, 3), new Vector3(1, 0.5, 4.75), new Vector3(1, 3.5, 5.75), new RGB(45, 20, 0));
+    
+        let stem_end_1 = new Triangle(new Vector3(-1, 4, 4), new Vector3(-1, 3.5, 5.75), new Vector3(1, 3.5, 5.75), new RGB(45, 20, 0));
+        let stem_end_2 = new Triangle(new Vector3(-1, 4, 4), new Vector3(1, 4, 4), new Vector3(1, 3.5, 5.75), new RGB(45, 20, 0));
+    
+        this.mesh.push(
+            base_end_1, base_end_2, base_top_1, base_top_2, base_bottom_1, base_bottom_2, base_left_1, base_left_2, base_right_1, base_right_2, 
+            bottom_1_1, bottom_1_2, top_1_1, top_1_2, left_1_1, left_1_2, right_1_1, right_1_2,
+            bottom_2_1, bottom_2_2, top_2_1, top_2_2, left_2_1, left_2_2, right_2_1, right_2_2,
+            bottom_3_1, bottom_3_2, top_3_1, top_3_2, left_3_1, right_3_1, 
+            bottom_4_1, bottom_4_2, left_4_1, left_4_2, right_4_1, right_4_2,
+            stem_top_1, stem_top_2, stem_bottom_1, stem_bottom_2, stem_left_1, stem_left_2, stem_right_1, stem_right_2, stem_end_1, stem_end_2
+        );
     }
 }
 
@@ -344,7 +463,7 @@ function matrix(m: number, n: number, fill_num: number = 0) {
 }
 
 // Multiplies two matricies
-function matrixMult(mat_1: Array<Array<number>>, mat_2: Array<Array<number>>) : Array<Array<number>> {
+function matrixMult(mat_1: number[][], mat_2: number[][]) : number[][] {
     let mat_mult = matrix(mat_1.length, mat_2[0].length);
 
     for (let i=0; i<mat_1.length; i++) {
@@ -362,6 +481,11 @@ function matrixMult(mat_1: Array<Array<number>>, mat_2: Array<Array<number>>) : 
     return mat_mult;
 }
 
+// Produces a random int from a to b
+function rand_int(a: number, b: number) : number {
+    return Math.floor( Math.random()*b ) + a
+} 
+
 // Stops the program from running for n milliseconds (https://stackoverflow.com/questions/951021/what-is-the-javascript-version-of-sleep)
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -370,8 +494,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // Notes //
 // Directionality: y-up, right-handed (https://pbs.twimg.com/media/EmVSW5AW8AAoDD9.jpg:large)
 
-function unpackObjects(objects: Array<ObjectNode>) : Array<Triangle> {
-    let triangles: Array<Triangle> = [];
+function unpackObjects(objects: ObjectNode[]) : Triangle[] {
+    let triangles: Triangle[] = [];
 
     // Copies every triangle in all of the objects to be drawn (copied as the triangles will be mapped to screen space)
     for (let obj=0; obj<objects.length; obj++) {
@@ -381,11 +505,11 @@ function unpackObjects(objects: Array<ObjectNode>) : Array<Triangle> {
     return triangles
 }
 
-function trianglesToClipSpace(camera: Camera, mvp_matrix: Array<Array<number>>, unmapped_triangles: Array<Triangle>) : Array<Triangle> {
+function trianglesToClipSpace(camera: Camera, camera_target: Vector3, mvp_matrix: number[][], unmapped_triangles: Triangle[]) : Triangle[] {
     for (let tri=0; tri<unmapped_triangles.length; tri++) {
-        unmapped_triangles[tri].vert_1 = worldToScreen(camera, mvp_matrix, unmapped_triangles[tri].vert_1);
-        unmapped_triangles[tri].vert_2 = worldToScreen(camera, mvp_matrix, unmapped_triangles[tri].vert_2);
-        unmapped_triangles[tri].vert_3 = worldToScreen(camera, mvp_matrix, unmapped_triangles[tri].vert_3);
+        unmapped_triangles[tri].vert_1 = worldToScreen(camera, camera_target, mvp_matrix, unmapped_triangles[tri].vert_1);
+        unmapped_triangles[tri].vert_2 = worldToScreen(camera, camera_target, mvp_matrix, unmapped_triangles[tri].vert_2);
+        unmapped_triangles[tri].vert_3 = worldToScreen(camera, camera_target, mvp_matrix, unmapped_triangles[tri].vert_3);
     }
 
     return unmapped_triangles
@@ -394,7 +518,7 @@ function trianglesToClipSpace(camera: Camera, mvp_matrix: Array<Array<number>>, 
 // Generates a matrix which transforms world coordinates to view coordinates
 // Based upon the position, pitch, and yaw of the camera.
 // Derived from https://www.3dgep.com/understanding-the-view-matrix/#Look_At_Camera.
-function makeMVPMatrix(camera: Camera) : Array<Array<number>> {
+function makeMVPMatrix(camera: Camera) : number[][] {
     // Inverted because we want to rotate the vector in the opposite direction of the camera
     let pitch_rad = -camera.view_angle.y*(Math.PI/180);
     let yaw_rad = -camera.view_angle.x*(Math.PI/180);
@@ -421,42 +545,36 @@ function makeMVPMatrix(camera: Camera) : Array<Array<number>> {
     return matrixMult(translation, rotation)
 }
 
-function pointBehindCamera(camera: Camera, vector: Vector3) : boolean {
+function cameraTarget(camera: Camera) : Vector3 {
     let pitch_rad = -camera.view_angle.y*(Math.PI/180);
     let yaw_rad = -camera.view_angle.x*(Math.PI/180);
 
-    let target = new Vector3(Math.sin(yaw_rad)*Math.cos(pitch_rad),
-    Math.sin(pitch_rad),
-    -Math.cos(yaw_rad)*Math.cos(pitch_rad))
-
-    if(target.dot(vector.minus(camera.position)) > 0) {
-        return true
-    } else {
-        return false
-    }
+    return new Vector3(Math.sin(yaw_rad)*Math.cos(pitch_rad),
+                       Math.sin(pitch_rad),
+                       -Math.cos(yaw_rad)*Math.cos(pitch_rad))
 }
 
-function worldToScreen(camera: Camera, mvp_matrix: Array<Array<number>>, vector: Vector3) : Vector3 {
+function pointBehindCamera(camera: Camera, camera_taget: Vector3, vector: Vector3) : boolean {
+    return camera_taget.dot(vector.minus(camera.position)) > 0
+}
+
+function worldToScreen(camera: Camera, camera_target: Vector3, mvp_matrix: number[][], vector: Vector3) : Vector3 {
     let vec_4 = new Vector4(vector.x, vector.y, vector.z, 1);
     
     vec_4 = vec_4.matrixMult(mvp_matrix);
     vec_4.w = 1;
     vec_4 = vec_4.matrixMult(camera.projection_matrix);
 
-    if(pointBehindCamera(camera, vector)) {
-        vec_4.w = -vec_4.w*0.1;
-    }
-
     if (vec_4.w != 0) {
+        // If the point is behind the camera, its axes need to be inverted
+        if (pointBehindCamera(camera, camera_target, vector)) {
+            vec_4.w = -vec_4.w*0.1;
+        }
+
         vec_4.x = vec_4.x/(vec_4.w);
         vec_4.y = vec_4.y/(vec_4.w);
-        vec_4.z = vec_4.z/(vec_4.w);
+        // vec_4.z = vec_4.z/(vec_4.w);
     }
-
-    // if (vec_4.z > 2) {
-    //     // vec_4.x = -vec_4.x;
-    //     vec_4.y = -vec_4.y;
-    // }
 
     // Map to canvas
     vec_4.x = CANVAS_SIZE.x*0.5 * (vec_4.x+1);
@@ -466,46 +584,25 @@ function worldToScreen(camera: Camera, mvp_matrix: Array<Array<number>>, vector:
 }
 
 
-function orderTriangles(triangles: Array<Triangle>) : Array<Triangle> {
-    let av_z_dists = []
-    let av_z_dist = 0;
-
+function orderTriangles(triangles: Triangle[]) : Triangle[] {
+    // Removes triangles that would be drawn on screen when behind the camera
     for (let tri=0; tri<triangles.length; tri++) {
-        let vert_1 = triangles[tri].vert_1;
-        let vert_2 = triangles[tri].vert_2;
-        let vert_3 = triangles[tri].vert_3;
+        let verts = [triangles[tri].vert_1, triangles[tri].vert_2, triangles[tri].vert_3]
 
-        // Checks if the triangles are behind the camera
-        // (Technically z > 0 is behind the camera, but the floating point
-        // rendering bug can occur at z values of -0.5)
-        // if (vert_1.z > -5 || vert_2.z > -5 || vert_3.z > -5) {
-        //     triangles.splice(tri, 1);
-        //     tri--;
-        //     continue;
-        // }
+        let x_signs = Math.abs( Math.sin(verts[0].x) + Math.sin(verts[1].x) + Math.sin(verts[2].x) );
+        let y_signs = Math.abs( Math.sin(verts[0].y) + Math.sin(verts[1].y) + Math.sin(verts[2].y) );
 
-        // // Checks for the floating point rendering error using sign analysis (only when Math.abs(vert_1.x) > 1000)
-        // // When looking straight at a vector and rotating, the x value will increase faster and faster (trig functions).
-        // // If the angle sheer enough, floating point error will change the sign of the x value resulting
-        // // in a triangle appearing across the screen.
-        // let sign_sum = Math.abs(Math.sign(vert_1.x) + Math.sign(vert_2.x) + Math.sign(vert_3.x));
-
-        // if (Math.abs(vert_1.x) > 2000 && sign_sum < 3) {
-        //     triangles.splice(tri, 1);
-        //     tri--;
-        //     continue;
-        // }
-
-        // Averages the distance of the triangle
-        av_z_dist = Math.min(vert_1.z, Math.min(vert_2.z, vert_3.z))
-        av_z_dists.push(av_z_dist);
+        if (triangles[tri].depth() > 0 && x_signs != 3 && y_signs != 3) {
+            triangles.splice(tri, 1);
+            tri--;
+            continue;
+        }
     }
 
-    // Sorts by average z distance (farthest to closest) (fyi, the values are negative)
-    triangles.sort((a, b) => {  
-        return av_z_dists[triangles.indexOf(a)] - av_z_dists[triangles.indexOf(b)];
+    triangles.sort((tri_1: Triangle, tri_2: Triangle) => { 
+        return tri_1.depth() - tri_2.depth();
     });
-
+    
     return triangles
 }
 
@@ -528,23 +625,16 @@ function drawTriangle(triangle: Triangle) {
     ctx.closePath();
 }
 
-function render(camera: Camera, objects: Array<ObjectNode>) {
+function render(camera: Camera, objects: ObjectNode[]) {
     let unmapped_triangles = unpackObjects(objects);
 
     let mvp_matrix = makeMVPMatrix(camera);
-    let mapped_triangles = trianglesToClipSpace(camera, mvp_matrix, unmapped_triangles);
-    
+    let camera_target = cameraTarget(camera);
+    let mapped_triangles = trianglesToClipSpace(camera, camera_target, mvp_matrix, unmapped_triangles);
+
     let ordered_triangles = orderTriangles(mapped_triangles);
 
     drawSkyBox();
-
-    console.log(camera.view_angle)
-
-    // Ensures ground is drawn first (a bit of a work around)
-    // for (let i=0; i<2; i++) {
-    //     drawTriangle(ordered_triangles[0]);
-    //     ordered_triangles.splice(0, 1);
-    // }
 
     for (let tri=0; tri<ordered_triangles.length; tri++) {
         drawTriangle(ordered_triangles[tri])
@@ -641,8 +731,8 @@ let execute = true; // When false, the engine will stop running
 // Canvas
 let canvas: HTMLCanvasElement;
 let ctx: CanvasRenderingContext2D;
-// const CANVAS_SIZE = new Vector2(1920, 1080); // Computer
-const CANVAS_SIZE = new Vector2(1000, 580); // Laptop
+const CANVAS_SIZE = new Vector2(1920, 1080); // Computer
+// const CANVAS_SIZE = new Vector2(1000, 580); // Laptop
 const DIST_SCALE = 0.1;
 
 function canvasInit() {
@@ -664,23 +754,20 @@ function canvasInit() {
 }
 
 // World
-let world_objects: Array<ObjectNode> = [];
+let world_objects: ObjectNode[] = [];
 let active_camera: Camera;
 
 // Creates and instantiates all objects
 function worldInit() {
     // Init camera
     active_camera = new Camera();
+    active_camera.rotate(new Vector2(180, 0));
 
     // World objects
-    let ground = new Plane(new Vector3(0, -10, 0), new Vector3(90, 0, 0), new Vector3(10, 10, 0))
+    // let reference_box = new Box(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 1), [new RGB(40, 40, 40)])
+    // let banana = new Banana(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 1), new RGB(250, 250, 55));
 
-    let reference_box = new Box(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 2));
-
-    let box_1 = new Box(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(5, 5, 5));
-    box_1.translate(new Vector3(0, 0, 10));
-
-    world_objects.push(ground, reference_box, box_1);
+    // world_objects.push(reference_box, banana);
 }
 
 function ready() {
@@ -691,12 +778,27 @@ function ready() {
     process()
 }
 
+let frame = 0;
+
 // Runs every frame when the game is started
 async function process() {
     while (execute) {
+        if (frame % 50 == 0) {
+            world_objects = [];
+            for (let bana=0; bana<20; bana++) {
+                let rand_pos = new Vector3(rand_int(-50, 50), rand_int(-20, 20), rand_int(-50, 50));
+                let rand_scale = rand_int(0.5, 1.5);
+                let rand_colour = new RGB(rand_int(50, 255), rand_int(50, 255), rand_int(50, 255));
+        
+                world_objects.push(new Banana(rand_pos, new Vector3(0, 0, 0), new Vector3(rand_scale, rand_scale, rand_scale), rand_colour));
+            }
+        }
+
         render(active_camera, world_objects);
         executeMoves()
 
+
+        frame++;
         await sleep(10); // 100 fps
     }
 }
