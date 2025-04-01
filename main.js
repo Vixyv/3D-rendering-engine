@@ -567,8 +567,8 @@ let execute = true; // When false, the engine will stop running
 // Canvas
 let canvas;
 let ctx;
-// const CANVAS_SIZE = new Vector2(1920, 1080); // Computer
-const CANVAS_SIZE = new Vector2(1000, 580); // Laptop
+const CANVAS_SIZE = new Vector2(1920, 1080); // Computer
+// const CANVAS_SIZE = new Vector2(1000, 580); // Laptop
 const DIST_SCALE = 0.1;
 function canvasInit() {
     // Init canvas and context
@@ -610,23 +610,25 @@ function ready() {
     canvasInit();
     inputInit();
     worldInit();
-    process();
+    requestAnimationFrame(process);
 }
-let frame = 0;
-// Runs every frame when the game is started
-function process() {
+let last_animation_frame = 0;
+let delta = 0; // Represents the amount of time since the last animation frame
+function process(timestamp) {
     return __awaiter(this, void 0, void 0, function* () {
-        while (execute) {
-            render(active_camera, world_objects);
-            executeMoves();
-            world_objects[0].rotate(new Vector3(0, -1, 0));
-            world_objects[0].position.y = 1000;
-            world_objects[1].rotate(new Vector3(0, 1, 0));
-            world_objects[1].position.y = 2 * Math.cos(0.05 * world_objects[1].rotation.y);
-            world_objects[2].rotate(new Vector3(0, -1, 0));
-            world_objects[2].position = new Vector3(15 * Math.sin(0.05 * world_objects[2].rotation.y), 2 * Math.sin(0.05 * world_objects[2].rotation.y), 15 * Math.cos(0.05 * world_objects[2].rotation.y));
-            frame++;
-            yield sleep(10); // 100 fps
+        delta = (timestamp - last_animation_frame) * 1;
+        last_animation_frame = timestamp;
+        console.log(delta);
+        render(active_camera, world_objects);
+        executeMoves();
+        world_objects[0].rotate(new Vector3(0, -1 * delta, 0));
+        world_objects[0].position.y = 1000;
+        world_objects[1].rotate(new Vector3(0, 1 * delta, 0));
+        world_objects[1].position.y = 2 * Math.cos(0.05 * world_objects[1].rotation.y) * delta;
+        world_objects[2].rotate(new Vector3(0, -1 * delta, 0));
+        world_objects[2].position = new Vector3(15 * Math.sin(0.05 * world_objects[2].rotation.y) * delta, 2 * Math.sin(0.05 * world_objects[2].rotation.y) * delta, 15 * Math.cos(0.05 * world_objects[2].rotation.y) * delta);
+        if (execute) {
+            requestAnimationFrame(process);
         }
     });
 }
