@@ -274,25 +274,15 @@ class ObjectNode {
         // 1. Scale
         vector = vector.vecMult(this.scale);
 
-        // 2. Rotate
-        // Derived from https://www.youtube.com/watch?v=bKd2lPjl92c
-        // let quanternion_y_rot = new Quanternion(0, Math.sin(rad_rotation.y), 0, Math.cos(rad_rotation.y));
-        // let quanternion_x_rot = new Quanternion(Math.sin(rad_rotation.x), 0, 0, Math.cos(rad_rotation.x));
-        // let quanternion_z_rot = new Quanternion(0, 0, Math.sin(rad_rotation.z), Math.cos(rad_rotation.z));
+        // 2. Rotate (Doesn't work in the z axis or with multiple rotations, but it's good enough for me)
+        let q = new Quanternion(0, 90, 0, 1).eulerToQuanternion(this.rotation.x, this.rotation.y, this.rotation.z).normalize();
 
-        // let quanternion_rot = quanternion_y_rot.quanMult(quanternion_x_rot).quanMult(quanternion_z_rot);
-        
-        let quanternion_rot = new Quanternion();
-        quanternion_rot = quanternion_rot.eulerToQuanternion(this.rotation.x, this.rotation.y, this.rotation.z);
-        quanternion_rot = quanternion_rot.normalize();
-        let quanternion_rot_conj = new Quanternion(-quanternion_rot.x, -quanternion_rot.y, -quanternion_rot.z, quanternion_rot.w);
+        // Derived from (https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation#Quaternion-derived_rotation_matrix)
+        let rotation_matrix = [[1-2*(q.y**2+q.z**2), 2*(q.x*q.y-q.z*q.w), 2*(q.x*q.z+q.y*q.w)],
+                               [2*(q.x*q.y+q.z*q.w), 1-2*(q.x**2+q.z**2), 2*(q.y*q.z-q.x*q.w)],
+                               [2*(q.x*q.z-q.y*q.w), 2*(q.y*q.z+q.x*q.w), 1-2*(q.x**2+q.y**2)]];
 
-        let vector_quanternion = new Quanternion(vector.x, vector.y, vector.z, 0);
-        vector_quanternion = quanternion_rot.quanMult(vector_quanternion).quanMult(quanternion_rot_conj);
-
-        vector.x = vector_quanternion.x;
-        vector.y = vector_quanternion.y;
-        vector.z = vector_quanternion.z;
+        vector = vector.matrixMult(rotation_matrix);
 
         // 3. Translate
         return vector.add(this.position);
@@ -787,17 +777,17 @@ function worldInit() {
 
     // World objects
     // let reference_box = new Box(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 1), [new RGB(40, 40, 40)])
-    let banana = new Banana(new Vector3(0, 0, 0), new Vector3(0, 0, 180), new Vector3(1, 1, 1), new RGB(250, 250, 55));
+    let banana = new Banana(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 1), new RGB(250, 250, 55));
 
     world_objects.push(banana);
 
-    // world_objects = [];
-    // for (let bana=0; bana<5; bana++) {
-    //     let rand_pos = new Vector3(rand_int(-50, 50), rand_int(-20, 20), rand_int(-50, 50));
+    // for (let bana=0; bana<20; bana++) {
+    //     let rand_pos = new Vector3(rand_int(-75, 75), rand_int(-20, 20), rand_int(-75, 75));
     //     let rand_scale = rand_int(0.5, 1.5);
+    //     let rand_rot = new Vector3(0, rand_int(0, 359), 0)
     //     let rand_colour = new RGB(rand_int(200, 255), rand_int(150, 230), rand_int(50, 100));
 
-    //     world_objects.push(new Banana(rand_pos, new Vector3(0, 0, 0), new Vector3(rand_scale, rand_scale, rand_scale), rand_colour));
+    //     world_objects.push(new Banana(rand_pos, rand_rot, new Vector3(rand_scale, rand_scale, rand_scale), rand_colour));
     // }
 }
 
@@ -816,6 +806,9 @@ async function process() {
     while (execute) {
         render(active_camera, world_objects);
         executeMoves()
+
+        world_objects[0].rotate(new Vector3(0, 1, 0));
+        world_objects[0].position = new Vector3(0, 2*Math.sin(0.05*world_objects[0].rotation.y), 0);
 
         frame++;
         await sleep(10); // 100 fps
