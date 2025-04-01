@@ -86,6 +86,28 @@ class Quanternion {
         this.w = w === undefined ? this.w : w;
     }
 
+    // Derived from (https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles#Euler_angles_(in_3-2-1_sequence)_to_quaternion_conversion)
+    eulerToQuanternion(roll: number, pitch: number, yaw: number) : Quanternion {
+        roll = roll * (Math.PI/180);
+        pitch = pitch * (Math.PI/180);
+        yaw = yaw * (Math.PI/180);
+        
+        let cr = Math.cos(roll * 0.5);
+        let sr = Math.sin(roll * 0.5);
+        let cp = Math.cos(pitch * 0.5);
+        let sp = Math.sin(pitch * 0.5);
+        let cy = Math.cos(yaw * 0.5);
+        let sy = Math.sin(yaw * 0.5);
+    
+        let q = new Quanternion();
+        q.x = sr * cp * cy - cr * sp * sy;
+        q.y = cr * sp * cy + sr * cp * sy;
+        q.z = cr * cp * sy - sr * sp * cy;
+        q.w = cr * cp * cy + sr * sp * sy;
+    
+        return q;
+    }
+
     normalize() {
         let length = Math.sqrt(this.x**2 + this.y**2 + this.z*2 + this.w**2)
         return new Quanternion(this.x/length, this.y/length, this.z/length, this.w/length)
@@ -253,14 +275,15 @@ class ObjectNode {
         vector = vector.vecMult(this.scale);
 
         // 2. Rotate
-        let rad_rotation = this.rotation.scale(Math.PI/360); // Divided by 360 because every angle needs to be halved
-
         // Derived from https://www.youtube.com/watch?v=bKd2lPjl92c
-        let quanternion_y_rot = new Quanternion(0, Math.sin(rad_rotation.y), 0, Math.cos(rad_rotation.y));
-        let quanternion_x_rot = new Quanternion(Math.sin(rad_rotation.x), 0, 0, Math.cos(rad_rotation.x));
-        let quanternion_z_rot = new Quanternion(0, 0, Math.sin(rad_rotation.z), Math.cos(rad_rotation.z));
+        // let quanternion_y_rot = new Quanternion(0, Math.sin(rad_rotation.y), 0, Math.cos(rad_rotation.y));
+        // let quanternion_x_rot = new Quanternion(Math.sin(rad_rotation.x), 0, 0, Math.cos(rad_rotation.x));
+        // let quanternion_z_rot = new Quanternion(0, 0, Math.sin(rad_rotation.z), Math.cos(rad_rotation.z));
 
-        let quanternion_rot = quanternion_y_rot.quanMult(quanternion_x_rot).quanMult(quanternion_z_rot);
+        // let quanternion_rot = quanternion_y_rot.quanMult(quanternion_x_rot).quanMult(quanternion_z_rot);
+        
+        let quanternion_rot = new Quanternion();
+        quanternion_rot = quanternion_rot.eulerToQuanternion(this.rotation.x, this.rotation.y, this.rotation.z);
         quanternion_rot = quanternion_rot.normalize();
         let quanternion_rot_conj = new Quanternion(-quanternion_rot.x, -quanternion_rot.y, -quanternion_rot.z, quanternion_rot.w);
 
@@ -731,8 +754,8 @@ let execute = true; // When false, the engine will stop running
 // Canvas
 let canvas: HTMLCanvasElement;
 let ctx: CanvasRenderingContext2D;
-const CANVAS_SIZE = new Vector2(1920, 1080); // Computer
-// const CANVAS_SIZE = new Vector2(1000, 580); // Laptop
+// const CANVAS_SIZE = new Vector2(1920, 1080); // Computer
+const CANVAS_SIZE = new Vector2(1000, 580); // Laptop
 const DIST_SCALE = 0.1;
 
 function canvasInit() {
@@ -761,13 +784,21 @@ let active_camera: Camera;
 function worldInit() {
     // Init camera
     active_camera = new Camera();
-    active_camera.rotate(new Vector2(180, 0));
 
     // World objects
     // let reference_box = new Box(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 1), [new RGB(40, 40, 40)])
-    // let banana = new Banana(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 1), new RGB(250, 250, 55));
+    let banana = new Banana(new Vector3(0, 0, 0), new Vector3(0, 0, 180), new Vector3(1, 1, 1), new RGB(250, 250, 55));
 
-    // world_objects.push(reference_box, banana);
+    world_objects.push(banana);
+
+    // world_objects = [];
+    // for (let bana=0; bana<5; bana++) {
+    //     let rand_pos = new Vector3(rand_int(-50, 50), rand_int(-20, 20), rand_int(-50, 50));
+    //     let rand_scale = rand_int(0.5, 1.5);
+    //     let rand_colour = new RGB(rand_int(200, 255), rand_int(150, 230), rand_int(50, 100));
+
+    //     world_objects.push(new Banana(rand_pos, new Vector3(0, 0, 0), new Vector3(rand_scale, rand_scale, rand_scale), rand_colour));
+    // }
 }
 
 function ready() {
@@ -783,20 +814,8 @@ let frame = 0;
 // Runs every frame when the game is started
 async function process() {
     while (execute) {
-        if (frame % 50 == 0) {
-            world_objects = [];
-            for (let bana=0; bana<20; bana++) {
-                let rand_pos = new Vector3(rand_int(-50, 50), rand_int(-20, 20), rand_int(-50, 50));
-                let rand_scale = rand_int(0.5, 1.5);
-                let rand_colour = new RGB(rand_int(50, 255), rand_int(50, 255), rand_int(50, 255));
-        
-                world_objects.push(new Banana(rand_pos, new Vector3(0, 0, 0), new Vector3(rand_scale, rand_scale, rand_scale), rand_colour));
-            }
-        }
-
         render(active_camera, world_objects);
         executeMoves()
-
 
         frame++;
         await sleep(10); // 100 fps
