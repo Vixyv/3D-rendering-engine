@@ -777,9 +777,11 @@ function worldInit() {
 
     // World objects
     // let reference_box = new Box(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 1), [new RGB(40, 40, 40)])
-    let banana = new Banana(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 1), new RGB(250, 250, 55));
+    let banana1 = new Banana(new Vector3(-10, 0, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 1), new RGB(250, 250, 55));
+    let banana2 = new Banana(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 1), new RGB(250, 250, 55));
+    let banana3 = new Banana(new Vector3(10, 0, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 1), new RGB(250, 250, 55));
 
-    world_objects.push(banana);
+    world_objects.push(banana1, banana2, banana3);
 
     // for (let bana=0; bana<20; bana++) {
     //     let rand_pos = new Vector3(rand_int(-75, 75), rand_int(-20, 20), rand_int(-75, 75));
@@ -807,8 +809,13 @@ async function process() {
         render(active_camera, world_objects);
         executeMoves()
 
-        world_objects[0].rotate(new Vector3(0, 1, 0));
-        world_objects[0].position = new Vector3(0, 2*Math.sin(0.05*world_objects[0].rotation.y), 0);
+        world_objects[0].rotate(new Vector3(0, -1, 0));
+        world_objects[0].position.y = 1000;
+        world_objects[1].rotate(new Vector3(0, 1, 0));
+        world_objects[1].position.y = 2*Math.cos(0.05*world_objects[1].rotation.y);
+        world_objects[2].rotate(new Vector3(0, -1, 0));
+        world_objects[2].position = new Vector3(15*Math.sin(0.05*world_objects[2].rotation.y), 2*Math.sin(0.05*world_objects[2].rotation.y), 15*Math.cos(0.05*world_objects[2].rotation.y));
+
 
         frame++;
         await sleep(10); // 100 fps
