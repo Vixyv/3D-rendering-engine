@@ -744,8 +744,8 @@ let execute = true; // When false, the engine will stop running
 // Canvas
 let canvas: HTMLCanvasElement;
 let ctx: CanvasRenderingContext2D;
-const CANVAS_SIZE = new Vector2(1920, 1080); // Computer
-// const CANVAS_SIZE = new Vector2(1000, 580); // Laptop
+// const CANVAS_SIZE = new Vector2(1920, 1080); // Computer
+const CANVAS_SIZE = new Vector2(1000, 580); // Laptop
 const DIST_SCALE = 0.1;
 
 function canvasInit() {
@@ -776,21 +776,23 @@ function worldInit() {
     active_camera = new Camera();
 
     // World objects
-    // let reference_box = new Box(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 1), [new RGB(40, 40, 40)])
-    let banana1 = new Banana(new Vector3(-10, 0, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 1), new RGB(250, 250, 55));
-    let banana2 = new Banana(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 1), new RGB(250, 250, 55));
-    let banana3 = new Banana(new Vector3(10, 0, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 1), new RGB(250, 250, 55));
+    for (let bana=0; bana<80; bana++) {
+        let spacing = (2*Math.PI)/80
+        let radius = 100;
+        let rand_pos = new Vector3(radius*Math.cos(bana*spacing), 0, radius*Math.sin(bana*spacing));
+        let rand_scale = rand_int(1, 1);
+        let rand_rot = new Vector3(0, (Math.atan(rand_pos.z/rand_pos.x))*(180/Math.PI), 0)
+        if (rand_pos.x >=0) {
+            rand_rot.y-=90;
+        } else {
+            rand_rot.y+=90;
+        }
 
-    world_objects.push(banana1, banana2, banana3);
+        console.log(Math.tan(rand_pos.z/rand_pos.x)*(180/Math.PI));
+        let rand_colour = new RGB(rand_int(200, 230), rand_int(150, 210), rand_int(20, 50));
 
-    // for (let bana=0; bana<20; bana++) {
-    //     let rand_pos = new Vector3(rand_int(-75, 75), rand_int(-20, 20), rand_int(-75, 75));
-    //     let rand_scale = rand_int(0.5, 1.5);
-    //     let rand_rot = new Vector3(0, rand_int(0, 359), 0)
-    //     let rand_colour = new RGB(rand_int(200, 255), rand_int(150, 230), rand_int(50, 100));
-
-    //     world_objects.push(new Banana(rand_pos, rand_rot, new Vector3(rand_scale, rand_scale, rand_scale), rand_colour));
-    // }
+        world_objects.push(new Banana(rand_pos, rand_rot, new Vector3(rand_scale, rand_scale, rand_scale), rand_colour));
+    }
 }
 
 function ready() {
@@ -801,25 +803,24 @@ function ready() {
     requestAnimationFrame(process)
 }
 
+let frame = 0; // Number of frames
 let last_animation_frame = 0;
 let delta = 0; // Represents the amount of time since the last animation frame
 
 async function process(timestamp: DOMHighResTimeStamp) {
-    delta = (timestamp - last_animation_frame)*1;
+    delta = (timestamp - last_animation_frame)*0.1;
     last_animation_frame = timestamp;
-
-    console.log(delta)
 
     render(active_camera, world_objects);
     executeMoves()
 
-    world_objects[0].rotate(new Vector3(0, -1*delta, 0));
-    world_objects[0].position.y = 1000;
-    world_objects[1].rotate(new Vector3(0, 1*delta, 0));
-    world_objects[1].position.y = 2*Math.cos(0.05*world_objects[1].rotation.y)*delta;
-    world_objects[2].rotate(new Vector3(0, -1*delta, 0));
-    world_objects[2].position = new Vector3(15*Math.sin(0.05*world_objects[2].rotation.y)*delta, 2*Math.sin(0.05*world_objects[2].rotation.y)*delta, 15*Math.cos(0.05*world_objects[2].rotation.y)*delta);
 
+    for (let bana=0; bana<world_objects.length; bana++) {
+        world_objects[bana].position.y = 15*Math.sin((frame + bana*3.8*2)*delta*0.05);
+    }
+
+
+    frame++;
     if (execute) {
         requestAnimationFrame(process)
     }
