@@ -126,6 +126,7 @@ class Camera {
         _Camera_far.set(this, 1000);
         _Camera_fov.set(this, 90);
         this.pitch_clamp = new Vector2(-89, 89); // Lower and upper vertical clamps on
+        this.no_clip = true;
         // Perspective projection matrix
         this.projection_matrix = matrix(4, 4);
         this.position = position === undefined ? this.position : position;
@@ -150,6 +151,13 @@ class Camera {
         let forward = new Vector3(-Math.sin(yaw_rad) * Math.cos(pitch_rad), -Math.sin(pitch_rad), -Math.cos(yaw_rad) * Math.cos(pitch_rad));
         let right = forward.cross(new Vector3(0, -1, 0)).normalize();
         let up = forward.cross(right);
+        if (!this.no_clip) {
+            up = new Vector3(0, 0, 0);
+            right.y = 0;
+            right = right.normalize();
+            forward.y = 0;
+            forward = forward.normalize();
+        }
         let translation = [[right.x, right.y, right.z],
             [-up.x, -up.y, -up.z],
             [forward.x, forward.y, forward.z]];
@@ -562,6 +570,13 @@ function executeMoves() {
         CAMERA_CONTROLLER[key].pressed && CAMERA_CONTROLLER[key].func(active_camera);
     });
 }
+function toggleNoClip() {
+    active_camera.no_clip = active_camera.no_clip ? false : true;
+}
+function clipCameraPos() {
+    active_camera.position.x = clamp(active_camera.position.x, -WORLD_BOUNDRY, WORLD_BOUNDRY);
+    active_camera.position.z = clamp(active_camera.position.z, -WORLD_BOUNDRY, WORLD_BOUNDRY);
+}
 // - Init - //
 let execute = true; // When false, the engine will stop running
 // Canvas
@@ -588,27 +603,26 @@ function canvasInit() {
 // World
 let world_objects = [];
 let active_camera;
+const WORLD_BOUNDRY = 40;
 // Creates and instantiates all objects
 function worldInit() {
     // Init camera
-    active_camera = new Camera();
+    active_camera = new Camera(new Vector3(0, 25, 0));
     // World objects
-    for (let bana = 0; bana < 80; bana++) {
-        let spacing = (2 * Math.PI) / 80;
-        let radius = 100;
-        let rand_pos = new Vector3(radius * Math.cos(bana * spacing), 0, radius * Math.sin(bana * spacing));
-        let rand_scale = rand_int(1, 1);
-        let rand_rot = new Vector3(0, (Math.atan(rand_pos.z / rand_pos.x)) * (180 / Math.PI), 0);
-        if (rand_pos.x >= 0) {
-            rand_rot.y -= 90;
-        }
-        else {
-            rand_rot.y += 90;
-        }
-        console.log(Math.tan(rand_pos.z / rand_pos.x) * (180 / Math.PI));
-        let rand_colour = new RGB(rand_int(200, 230), rand_int(150, 210), rand_int(20, 50));
-        world_objects.push(new Banana(rand_pos, rand_rot, new Vector3(rand_scale, rand_scale, rand_scale), rand_colour));
-    }
+    let reference_box = new Box(new Vector3(0, 30, 0), new Vector3(0, 0, 0), new Vector3(1, 1, 1), [new RGB(0, 0, 0)]);
+    let ground_colour = new RGB(46, 173, 3);
+    let ground_size = WORLD_BOUNDRY + 15;
+    let wall_colour = new RGB(145, 97, 38);
+    let wall_height = 4;
+    let sky_colour = new RGB(61, 200, 255);
+    let sky_height = 130;
+    let ground = new Box(new Vector3(0, -ground_size, 0), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
+    let sky = new Plane(new Vector3(0, sky_height, 0), new Vector3(90, 0, 0), new Vector3(ground_size * 1.5, ground_size * 1.5, 0), [sky_colour]);
+    let wall_1 = new Plane(new Vector3(-ground_size, wall_height, 0), new Vector3(0, 90, 0), new Vector3(ground_size, wall_height, 1), [wall_colour]);
+    let wall_2 = new Plane(new Vector3(ground_size, wall_height, 0), new Vector3(0, 90, 0), new Vector3(ground_size, wall_height, 1), [wall_colour]);
+    let wall_3 = new Plane(new Vector3(0, wall_height, -ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, wall_height, 1), [wall_colour]);
+    let wall_4 = new Plane(new Vector3(0, wall_height, ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, wall_height, 1), [wall_colour]);
+    world_objects.push(reference_box, ground, sky, wall_1, wall_2, wall_3, wall_4);
 }
 function ready() {
     canvasInit();
@@ -625,8 +639,8 @@ function process(timestamp) {
         last_animation_frame = timestamp;
         render(active_camera, world_objects);
         executeMoves();
-        for (let bana = 0; bana < world_objects.length; bana++) {
-            world_objects[bana].position.y = 15 * Math.sin((frame + bana * 3.8 * 2) * delta * 0.05);
+        if (!active_camera.no_clip) {
+            clipCameraPos();
         }
         frame++;
         if (execute) {
