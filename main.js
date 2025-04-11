@@ -144,11 +144,15 @@ class Camera {
         }
         this.view_angle.y = clamp(this.view_angle.y, this.pitch_clamp.x, this.pitch_clamp.y);
     }
-    // Moves the camera relative to the direction the camera is facing
-    move(direction) {
+    // The direction the camera is facing
+    facing() {
         let pitch_rad = this.view_angle.y * (Math.PI / 180);
         let yaw_rad = this.view_angle.x * (Math.PI / 180);
-        let forward = new Vector3(-Math.sin(yaw_rad) * Math.cos(pitch_rad), -Math.sin(pitch_rad), -Math.cos(yaw_rad) * Math.cos(pitch_rad));
+        return new Vector3(-Math.sin(yaw_rad) * Math.cos(pitch_rad), -Math.sin(pitch_rad), -Math.cos(yaw_rad) * Math.cos(pitch_rad));
+    }
+    // Moves the camera relative to the direction the camera is facing
+    move(direction) {
+        let forward = this.facing();
         let right = forward.cross(new Vector3(0, -1, 0)).normalize();
         let up = forward.cross(right);
         if (!this.no_clip) {
@@ -191,6 +195,12 @@ class Triangle {
         this.colour = colour === undefined ? this.colour : colour;
     }
     depth() { return (this.vert_1.z + this.vert_2.z + this.vert_3.z) / 3; }
+    // - means facing away from camera, + means facing towards camera
+    facing() {
+        let A = this.vert_2.minus(this.vert_1);
+        let B = this.vert_3.minus(this.vert_1);
+        return A.y * B.x - A.x * B.y;
+    }
 }
 class ObjectNode {
     // Only used if a custom mesh is given
@@ -250,14 +260,15 @@ class Box extends ObjectNode {
     }
 }
 _Box_instances = new WeakSet(), _Box_createMesh = function _Box_createMesh() {
+    // Winding is altered so that all sides except the top face inwards because this is only used for the ground
     // Along z
-    let back_1 = new Triangle(new Vector3(-1, -1, 1), new Vector3(-1, 1, 1), new Vector3(1, 1, 1));
-    let back_2 = new Triangle(new Vector3(1, 1, 1), new Vector3(1, -1, 1), new Vector3(-1, -1, 1));
+    let back_1 = new Triangle(new Vector3(-1, 1, 1), new Vector3(-1, -1, 1), new Vector3(1, 1, 1));
+    let back_2 = new Triangle(new Vector3(1, -1, 1), new Vector3(1, 1, 1), new Vector3(-1, -1, 1));
     let front_1 = new Triangle(new Vector3(1, -1, -1), new Vector3(-1, 1, -1), new Vector3(1, 1, -1));
     let front_2 = new Triangle(new Vector3(-1, 1, -1), new Vector3(1, -1, -1), new Vector3(-1, -1, -1));
     // Along x
     let left_1 = new Triangle(new Vector3(-1, -1, 1), new Vector3(-1, 1, 1), new Vector3(-1, -1, -1));
-    let left_2 = new Triangle(new Vector3(-1, -1, -1), new Vector3(-1, 1, -1), new Vector3(-1, 1, 1));
+    let left_2 = new Triangle(new Vector3(-1, 1, -1), new Vector3(-1, -1, -1), new Vector3(-1, 1, 1));
     let right_1 = new Triangle(new Vector3(1, -1, 1), new Vector3(1, -1, -1), new Vector3(1, 1, -1));
     let right_2 = new Triangle(new Vector3(1, 1, -1), new Vector3(1, 1, 1), new Vector3(1, -1, 1));
     // Along y
@@ -277,8 +288,8 @@ class Plane extends ObjectNode {
 }
 _Plane_instances = new WeakSet(), _Plane_createMesh = function _Plane_createMesh() {
     // Along z
-    let tri_1 = new Triangle(new Vector3(-1, 1, 0), new Vector3(1, 1, 0), new Vector3(1, -1, 0));
-    let tri_2 = new Triangle(new Vector3(-1, 1, 0), new Vector3(1, -1, 0), new Vector3(-1, -1, 0));
+    let tri_1 = new Triangle(new Vector3(1, 1, 0), new Vector3(-1, 1, 0), new Vector3(1, -1, 0));
+    let tri_2 = new Triangle(new Vector3(1, -1, 0), new Vector3(-1, 1, 0), new Vector3(-1, -1, 0));
     this.mesh.push(tri_1, tri_2);
 };
 class CustomMesh extends ObjectNode {
@@ -302,59 +313,59 @@ _Banana_instances = new WeakSet(), _Banana_createTexture = function _Banana_crea
     return [...Array(10).fill(new RGB(45, 20, 0)), ...Array(28).fill(main_colour), ...Array(10).fill(new RGB(45, 20, 0))];
 }, _Banana_createMesh = function _Banana_createMesh() {
     // Banana base
-    let base_end_1 = new Triangle(new Vector3(1, -4, -12), new Vector3(-1, -4, -12), new Vector3(-1, -6, -12), new RGB(45, 20, 0));
-    let base_end_2 = new Triangle(new Vector3(1, -4, -12), new Vector3(-1, -6, -12), new Vector3(1, -6, -12), new RGB(45, 20, 0));
-    let base_top_1 = new Triangle(new Vector3(1, -4, -12), new Vector3(-1, -4, -12), new Vector3(-1, -4, -11), new RGB(45, 20, 0));
-    let base_top_2 = new Triangle(new Vector3(1, -4, -12), new Vector3(1, -4, -11), new Vector3(-1, -4, -11), new RGB(45, 20, 0));
-    let base_bottom_1 = new Triangle(new Vector3(1, -6, -12), new Vector3(-1, -6, -12), new Vector3(-1, -6, -11), new RGB(45, 20, 0));
-    let base_bottom_2 = new Triangle(new Vector3(1, -6, -12), new Vector3(1, -6, -11), new Vector3(-1, -6, -11), new RGB(45, 20, 0));
-    let base_left_1 = new Triangle(new Vector3(-1, -4, -11), new Vector3(-1, -4, -12), new Vector3(-1, -6, -11), new RGB(45, 20, 0));
-    let base_left_2 = new Triangle(new Vector3(-1, -4, -12), new Vector3(-1, -6, -12), new Vector3(-1, -6, -11), new RGB(45, 20, 0));
-    let base_right_1 = new Triangle(new Vector3(1, -4, -11), new Vector3(1, -4, -12), new Vector3(1, -6, -11), new RGB(45, 20, 0));
-    let base_right_2 = new Triangle(new Vector3(1, -4, -12), new Vector3(1, -6, -12), new Vector3(1, -6, -11), new RGB(45, 20, 0));
+    let base_end_1 = new Triangle(new Vector3(1, -4, -12), new Vector3(-1, -4, -12), new Vector3(-1, -6, -12));
+    let base_end_2 = new Triangle(new Vector3(1, -4, -12), new Vector3(-1, -6, -12), new Vector3(1, -6, -12));
+    let base_top_1 = new Triangle(new Vector3(-1, -4, -12), new Vector3(1, -4, -12), new Vector3(-1, -4, -11));
+    let base_top_2 = new Triangle(new Vector3(1, -4, -12), new Vector3(1, -4, -11), new Vector3(-1, -4, -11));
+    let base_bottom_1 = new Triangle(new Vector3(1, -6, -12), new Vector3(-1, -6, -12), new Vector3(-1, -6, -11));
+    let base_bottom_2 = new Triangle(new Vector3(1, -6, -11), new Vector3(1, -6, -12), new Vector3(-1, -6, -11));
+    let base_left_1 = new Triangle(new Vector3(-1, -4, -12), new Vector3(-1, -4, -11), new Vector3(-1, -6, -11));
+    let base_left_2 = new Triangle(new Vector3(-1, -6, -12), new Vector3(-1, -4, -12), new Vector3(-1, -6, -11));
+    let base_right_1 = new Triangle(new Vector3(1, -4, -11), new Vector3(1, -4, -12), new Vector3(1, -6, -11));
+    let base_right_2 = new Triangle(new Vector3(1, -4, -12), new Vector3(1, -6, -12), new Vector3(1, -6, -11));
     // Banana loop 1
-    let bottom_1_1 = new Triangle(new Vector3(1, -6, -11), new Vector3(-1, -6, -11), new Vector3(2, -7.5, -6), new RGB(250, 250, 55));
-    let bottom_1_2 = new Triangle(new Vector3(-1, -6, -11), new Vector3(2, -7.5, -6), new Vector3(-2, -7.5, -6), new RGB(250, 250, 55));
-    let top_1_1 = new Triangle(new Vector3(1, -4, -11), new Vector3(-1, -4, -11), new Vector3(2, -4.5, -6), new RGB(250, 250, 55));
-    let top_1_2 = new Triangle(new Vector3(-1, -4, -11), new Vector3(2, -4.5, -6), new Vector3(-2, -4.5, -6), new RGB(250, 250, 55));
-    let left_1_1 = new Triangle(new Vector3(-1, -4, -11), new Vector3(-1, -6, -11), new Vector3(-2, -7.5, -6), new RGB(250, 250, 55));
-    let left_1_2 = new Triangle(new Vector3(-1, -4, -11), new Vector3(-2, -4.5, -6), new Vector3(-2, -7.5, -6), new RGB(250, 250, 55));
-    let right_1_1 = new Triangle(new Vector3(1, -4, -11), new Vector3(1, -6, -11), new Vector3(2, -7.5, -6), new RGB(250, 250, 55));
-    let right_1_2 = new Triangle(new Vector3(1, -4, -11), new Vector3(2, -4.5, -6), new Vector3(2, -7.5, -6), new RGB(250, 250, 55));
+    let bottom_1_1 = new Triangle(new Vector3(1, -6, -11), new Vector3(-1, -6, -11), new Vector3(2, -7.5, -6));
+    let bottom_1_2 = new Triangle(new Vector3(2, -7.5, -6), new Vector3(-1, -6, -11), new Vector3(-2, -7.5, -6));
+    let top_1_1 = new Triangle(new Vector3(-1, -4, -11), new Vector3(1, -4, -11), new Vector3(2, -4.5, -6));
+    let top_1_2 = new Triangle(new Vector3(-1, -4, -11), new Vector3(2, -4.5, -6), new Vector3(-2, -4.5, -6));
+    let left_1_1 = new Triangle(new Vector3(-1, -6, -11), new Vector3(-1, -4, -11), new Vector3(-2, -7.5, -6));
+    let left_1_2 = new Triangle(new Vector3(-1, -4, -11), new Vector3(-2, -4.5, -6), new Vector3(-2, -7.5, -6));
+    let right_1_1 = new Triangle(new Vector3(1, -4, -11), new Vector3(1, -6, -11), new Vector3(2, -7.5, -6));
+    let right_1_2 = new Triangle(new Vector3(2, -4.5, -6), new Vector3(1, -4, -11), new Vector3(2, -7.5, -6));
     // Banana loop 2
-    let bottom_2_1 = new Triangle(new Vector3(2, -7.5, -6), new Vector3(-2, -7.5, -6), new Vector3(2, -7, 0), new RGB(250, 250, 55));
-    let bottom_2_2 = new Triangle(new Vector3(-2, -7, 0), new Vector3(-2, -7.5, -6), new Vector3(2, -7, 0), new RGB(250, 250, 55));
-    let top_2_1 = new Triangle(new Vector3(2, -4.5, -6), new Vector3(-2, -4.5, -6), new Vector3(2, -2, 0), new RGB(250, 250, 55));
-    let top_2_2 = new Triangle(new Vector3(-2, -4.5, -6), new Vector3(2, -2, 0), new Vector3(-2, -2, 0), new RGB(250, 250, 55));
-    let left_2_1 = new Triangle(new Vector3(-2, -7.5, -6), new Vector3(-2, -4.5, -6), new Vector3(-2, -2, 0), new RGB(250, 250, 55));
-    let left_2_2 = new Triangle(new Vector3(-2, -7.5, -6), new Vector3(-2, -7, 0), new Vector3(-2, -2, 0), new RGB(250, 250, 55));
-    let right_2_1 = new Triangle(new Vector3(2, -7.5, -6), new Vector3(2, -4.5, -6), new Vector3(2, -2, 0), new RGB(250, 250, 55));
-    let right_2_2 = new Triangle(new Vector3(2, -7.5, -6), new Vector3(2, -7, 0), new Vector3(2, -2, 0), new RGB(250, 250, 55));
+    let bottom_2_1 = new Triangle(new Vector3(2, -7.5, -6), new Vector3(-2, -7.5, -6), new Vector3(2, -7, 0));
+    let bottom_2_2 = new Triangle(new Vector3(-2, -7.5, -6), new Vector3(-2, -7, 0), new Vector3(2, -7, 0));
+    let top_2_1 = new Triangle(new Vector3(-2, -4.5, -6), new Vector3(2, -4.5, -6), new Vector3(2, -2, 0));
+    let top_2_2 = new Triangle(new Vector3(-2, -4.5, -6), new Vector3(2, -2, 0), new Vector3(-2, -2, 0));
+    let left_2_1 = new Triangle(new Vector3(-2, -7.5, -6), new Vector3(-2, -4.5, -6), new Vector3(-2, -2, 0));
+    let left_2_2 = new Triangle(new Vector3(-2, -7, 0), new Vector3(-2, -7.5, -6), new Vector3(-2, -2, 0));
+    let right_2_1 = new Triangle(new Vector3(2, -4.5, -6), new Vector3(2, -7.5, -6), new Vector3(2, -2, 0));
+    let right_2_2 = new Triangle(new Vector3(2, -7.5, -6), new Vector3(2, -7, 0), new Vector3(2, -2, 0));
     // Banana loop 3
-    let bottom_3_1 = new Triangle(new Vector3(-2, -7, 0), new Vector3(2, -7, 0), new Vector3(1.5, -3, 4), new RGB(250, 250, 55));
-    let bottom_3_2 = new Triangle(new Vector3(-2, -7, 0), new Vector3(-1.5, -3, 4), new Vector3(1.5, -3, 4), new RGB(250, 250, 55));
-    let top_3_1 = new Triangle(new Vector3(-2, -2, 0), new Vector3(2, -2, 0), new Vector3(1, 1, 3), new RGB(250, 250, 55));
-    let top_3_2 = new Triangle(new Vector3(-2, -2, 0), new Vector3(-1, 1, 3), new Vector3(1, 1, 3), new RGB(250, 250, 55));
-    let left_3_1 = new Triangle(new Vector3(-2, -7, 0), new Vector3(-2, -2, 0), new Vector3(-1.5, -3, 4), new RGB(250, 250, 55));
-    let right_3_1 = new Triangle(new Vector3(2, -7, 0), new Vector3(2, -2, 0), new Vector3(1.5, -3, 4), new RGB(250, 250, 55));
+    let bottom_3_1 = new Triangle(new Vector3(2, -7, 0), new Vector3(-2, -7, 0), new Vector3(1.5, -3, 4));
+    let bottom_3_2 = new Triangle(new Vector3(-2, -7, 0), new Vector3(-1.5, -3, 4), new Vector3(1.5, -3, 4));
+    let top_3_1 = new Triangle(new Vector3(-2, -2, 0), new Vector3(2, -2, 0), new Vector3(1, 1, 3));
+    let top_3_2 = new Triangle(new Vector3(-1, 1, 3), new Vector3(-2, -2, 0), new Vector3(1, 1, 3));
+    let left_3_1 = new Triangle(new Vector3(-2, -7, 0), new Vector3(-2, -2, 0), new Vector3(-1.5, -3, 4));
+    let right_3_1 = new Triangle(new Vector3(2, -2, 0), new Vector3(2, -7, 0), new Vector3(1.5, -3, 4));
     // Banana loop 4 (no top)
-    let bottom_4_1 = new Triangle(new Vector3(-1.5, -3, 4), new Vector3(1.5, -3, 4), new Vector3(1, 0.5, 4.75), new RGB(250, 250, 55));
-    let bottom_4_2 = new Triangle(new Vector3(-1.5, -3, 4), new Vector3(-1, 0.5, 4.75), new Vector3(1, 0.5, 4.75), new RGB(250, 250, 55));
-    let left_4_1 = new Triangle(new Vector3(-2, -2, 0), new Vector3(-1, 1, 3), new Vector3(-1.5, -3, 4), new RGB(250, 250, 55));
-    let left_4_2 = new Triangle(new Vector3(-1.5, -3, 4), new Vector3(-1, 0.5, 4.75), new Vector3(-1, 1, 3), new RGB(250, 250, 55));
-    let right_4_1 = new Triangle(new Vector3(2, -2, 0), new Vector3(1, 1, 3), new Vector3(1.5, -3, 4), new RGB(250, 250, 55));
-    let right_4_2 = new Triangle(new Vector3(1.5, -3, 4), new Vector3(1, 0.5, 4.75), new Vector3(1, 1, 3), new RGB(250, 250, 55));
+    let bottom_4_1 = new Triangle(new Vector3(1.5, -3, 4), new Vector3(-1.5, -3, 4), new Vector3(1, 0.5, 4.75));
+    let bottom_4_2 = new Triangle(new Vector3(-1.5, -3, 4), new Vector3(-1, 0.5, 4.75), new Vector3(1, 0.5, 4.75));
+    let left_4_1 = new Triangle(new Vector3(-2, -2, 0), new Vector3(-1, 1, 3), new Vector3(-1.5, -3, 4));
+    let left_4_2 = new Triangle(new Vector3(-1, 0.5, 4.75), new Vector3(-1.5, -3, 4), new Vector3(-1, 1, 3));
+    let right_4_1 = new Triangle(new Vector3(1, 1, 3), new Vector3(2, -2, 0), new Vector3(1.5, -3, 4));
+    let right_4_2 = new Triangle(new Vector3(1.5, -3, 4), new Vector3(1, 0.5, 4.75), new Vector3(1, 1, 3));
     // Banana stem
-    let stem_top_1 = new Triangle(new Vector3(-1, 1, 3), new Vector3(1, 1, 3), new Vector3(1, 4, 4), new RGB(45, 20, 0));
-    let stem_top_2 = new Triangle(new Vector3(-1, 1, 3), new Vector3(-1, 4, 4), new Vector3(1, 4, 4), new RGB(45, 20, 0));
-    let stem_bottom_1 = new Triangle(new Vector3(-1, 0.5, 4.75), new Vector3(1, 0.5, 4.75), new Vector3(1, 3.5, 5.75), new RGB(45, 20, 0));
-    let stem_bottom_2 = new Triangle(new Vector3(-1, 0.5, 4.75), new Vector3(-1, 3.5, 5.75), new Vector3(1, 3.5, 5.75), new RGB(45, 20, 0));
-    let stem_left_1 = new Triangle(new Vector3(-1, 1, 3), new Vector3(-1, 4, 4), new Vector3(-1, 3.5, 5.75), new RGB(45, 20, 0));
-    let stem_left_2 = new Triangle(new Vector3(-1, 1, 3), new Vector3(-1, 0.5, 4.75), new Vector3(-1, 3.5, 5.75), new RGB(45, 20, 0));
-    let stem_right_1 = new Triangle(new Vector3(1, 1, 3), new Vector3(1, 4, 4), new Vector3(1, 3.5, 5.75), new RGB(45, 20, 0));
-    let stem_right_2 = new Triangle(new Vector3(1, 1, 3), new Vector3(1, 0.5, 4.75), new Vector3(1, 3.5, 5.75), new RGB(45, 20, 0));
-    let stem_end_1 = new Triangle(new Vector3(-1, 4, 4), new Vector3(-1, 3.5, 5.75), new Vector3(1, 3.5, 5.75), new RGB(45, 20, 0));
-    let stem_end_2 = new Triangle(new Vector3(-1, 4, 4), new Vector3(1, 4, 4), new Vector3(1, 3.5, 5.75), new RGB(45, 20, 0));
+    let stem_top_1 = new Triangle(new Vector3(-1, 1, 3), new Vector3(1, 1, 3), new Vector3(1, 4, 4));
+    let stem_top_2 = new Triangle(new Vector3(-1, 4, 4), new Vector3(-1, 1, 3), new Vector3(1, 4, 4));
+    let stem_bottom_1 = new Triangle(new Vector3(1, 0.5, 4.75), new Vector3(-1, 0.5, 4.75), new Vector3(1, 3.5, 5.75));
+    let stem_bottom_2 = new Triangle(new Vector3(-1, 0.5, 4.75), new Vector3(-1, 3.5, 5.75), new Vector3(1, 3.5, 5.75));
+    let stem_left_1 = new Triangle(new Vector3(-1, 1, 3), new Vector3(-1, 4, 4), new Vector3(-1, 3.5, 5.75));
+    let stem_left_2 = new Triangle(new Vector3(-1, 0.5, 4.75), new Vector3(-1, 1, 3), new Vector3(-1, 3.5, 5.75));
+    let stem_right_1 = new Triangle(new Vector3(1, 4, 4), new Vector3(1, 1, 3), new Vector3(1, 3.5, 5.75));
+    let stem_right_2 = new Triangle(new Vector3(1, 1, 3), new Vector3(1, 0.5, 4.75), new Vector3(1, 3.5, 5.75));
+    let stem_end_1 = new Triangle(new Vector3(-1, 3.5, 5.75), new Vector3(-1, 4, 4), new Vector3(1, 3.5, 5.75));
+    let stem_end_2 = new Triangle(new Vector3(-1, 4, 4), new Vector3(1, 4, 4), new Vector3(1, 3.5, 5.75));
     this.mesh.push(base_end_1, base_end_2, base_top_1, base_top_2, base_bottom_1, base_bottom_2, base_left_1, base_left_2, base_right_1, base_right_2, bottom_1_1, bottom_1_2, top_1_1, top_1_2, left_1_1, left_1_2, right_1_1, right_1_2, bottom_2_1, bottom_2_2, top_2_1, top_2_2, left_2_1, left_2_2, right_2_1, right_2_2, bottom_3_1, bottom_3_2, top_3_1, top_3_2, left_3_1, right_3_1, bottom_4_1, bottom_4_2, left_4_1, left_4_2, right_4_1, right_4_2, stem_top_1, stem_top_2, stem_bottom_1, stem_bottom_2, stem_left_1, stem_left_2, stem_right_1, stem_right_2, stem_end_1, stem_end_2);
 };
 class Basket extends ObjectNode {
@@ -373,56 +384,56 @@ _Basket_instances = new WeakSet(), _Basket_createTexture = function _Basket_crea
     const SQRT2 = Math.SQRT2;
     const INNER_SQRT2 = Math.SQRT2 * 0.75;
     // Top ring
-    let t_11 = new Triangle(new Vector3(1.5, 1, 0), new Vector3(INNER_SQRT2, 1, INNER_SQRT2), new Vector3(2, 1, 0));
+    let t_11 = new Triangle(new Vector3(INNER_SQRT2, 1, INNER_SQRT2), new Vector3(1.5, 1, 0), new Vector3(2, 1, 0));
     let t_12 = new Triangle(new Vector3(2, 1, 0), new Vector3(SQRT2, 1, SQRT2), new Vector3(INNER_SQRT2, 1, INNER_SQRT2));
-    let t_21 = new Triangle(new Vector3(INNER_SQRT2, 1, INNER_SQRT2), new Vector3(0, 1, 1.5), new Vector3(SQRT2, 1, SQRT2));
+    let t_21 = new Triangle(new Vector3(0, 1, 1.5), new Vector3(INNER_SQRT2, 1, INNER_SQRT2), new Vector3(SQRT2, 1, SQRT2));
     let t_22 = new Triangle(new Vector3(SQRT2, 1, SQRT2), new Vector3(0, 1, 2), new Vector3(0, 1, 1.5));
-    let t_31 = new Triangle(new Vector3(0, 1, 1.5), new Vector3(-INNER_SQRT2, 1, INNER_SQRT2), new Vector3(0, 1, 2));
+    let t_31 = new Triangle(new Vector3(-INNER_SQRT2, 1, INNER_SQRT2), new Vector3(0, 1, 1.5), new Vector3(0, 1, 2));
     let t_32 = new Triangle(new Vector3(0, 1, 2), new Vector3(-SQRT2, 1, SQRT2), new Vector3(-INNER_SQRT2, 1, INNER_SQRT2));
-    let t_41 = new Triangle(new Vector3(-INNER_SQRT2, 1, INNER_SQRT2), new Vector3(-1.5, 1, 0), new Vector3(-SQRT2, 1, SQRT2));
+    let t_41 = new Triangle(new Vector3(-1.5, 1, 0), new Vector3(-INNER_SQRT2, 1, INNER_SQRT2), new Vector3(-SQRT2, 1, SQRT2));
     let t_42 = new Triangle(new Vector3(-SQRT2, 1, SQRT2), new Vector3(-2, 1, 0), new Vector3(-1.5, 1, 0));
-    let t_51 = new Triangle(new Vector3(-1.5, 1, 0), new Vector3(-INNER_SQRT2, 1, -INNER_SQRT2), new Vector3(-2, 1, 0));
+    let t_51 = new Triangle(new Vector3(-INNER_SQRT2, 1, -INNER_SQRT2), new Vector3(-1.5, 1, 0), new Vector3(-2, 1, 0));
     let t_52 = new Triangle(new Vector3(-2, 1, 0), new Vector3(-SQRT2, 1, -SQRT2), new Vector3(-INNER_SQRT2, 1, -INNER_SQRT2));
-    let t_61 = new Triangle(new Vector3(-INNER_SQRT2, 1, -INNER_SQRT2), new Vector3(0, 1, -1.5), new Vector3(-SQRT2, 1, -SQRT2));
+    let t_61 = new Triangle(new Vector3(0, 1, -1.5), new Vector3(-INNER_SQRT2, 1, -INNER_SQRT2), new Vector3(-SQRT2, 1, -SQRT2));
     let t_62 = new Triangle(new Vector3(-SQRT2, 1, -SQRT2), new Vector3(0, 1, -2), new Vector3(0, 1, -1.5));
-    let t_71 = new Triangle(new Vector3(0, 1, -1.5), new Vector3(INNER_SQRT2, 1, -INNER_SQRT2), new Vector3(0, 1, -2));
+    let t_71 = new Triangle(new Vector3(INNER_SQRT2, 1, -INNER_SQRT2), new Vector3(0, 1, -1.5), new Vector3(0, 1, -2));
     let t_72 = new Triangle(new Vector3(0, 1, -2), new Vector3(SQRT2, 1, -SQRT2), new Vector3(INNER_SQRT2, 1, -INNER_SQRT2));
-    let t_81 = new Triangle(new Vector3(INNER_SQRT2, 1, -INNER_SQRT2), new Vector3(1.5, 1, 0), new Vector3(SQRT2, 1, -SQRT2));
+    let t_81 = new Triangle(new Vector3(1.5, 1, 0), new Vector3(INNER_SQRT2, 1, -INNER_SQRT2), new Vector3(SQRT2, 1, -SQRT2));
     let t_82 = new Triangle(new Vector3(SQRT2, 1, -SQRT2), new Vector3(2, 1, 0), new Vector3(1.5, 1, 0));
     // Outside ring
     let o_11 = new Triangle(new Vector3(2, -1, 0), new Vector3(SQRT2, -1, SQRT2), new Vector3(2, 1, 0));
-    let o_12 = new Triangle(new Vector3(2, 1, 0), new Vector3(SQRT2, 1, SQRT2), new Vector3(SQRT2, -1, SQRT2));
+    let o_12 = new Triangle(new Vector3(SQRT2, 1, SQRT2), new Vector3(2, 1, 0), new Vector3(SQRT2, -1, SQRT2));
     let o_21 = new Triangle(new Vector3(SQRT2, -1, SQRT2), new Vector3(0, -1, 2), new Vector3(SQRT2, 1, SQRT2));
-    let o_22 = new Triangle(new Vector3(SQRT2, 1, SQRT2), new Vector3(0, 1, 2), new Vector3(0, -1, 2));
+    let o_22 = new Triangle(new Vector3(0, 1, 2), new Vector3(SQRT2, 1, SQRT2), new Vector3(0, -1, 2));
     let o_31 = new Triangle(new Vector3(0, -1, 2), new Vector3(-SQRT2, -1, SQRT2), new Vector3(0, 1, 2));
-    let o_32 = new Triangle(new Vector3(0, 1, 2), new Vector3(-SQRT2, 1, SQRT2), new Vector3(-SQRT2, -1, SQRT2));
+    let o_32 = new Triangle(new Vector3(-SQRT2, 1, SQRT2), new Vector3(0, 1, 2), new Vector3(-SQRT2, -1, SQRT2));
     let o_41 = new Triangle(new Vector3(-SQRT2, -1, SQRT2), new Vector3(-2, -1, 0), new Vector3(-SQRT2, 1, SQRT2));
-    let o_42 = new Triangle(new Vector3(-SQRT2, 1, SQRT2), new Vector3(-2, 1, 0), new Vector3(-2, -1, 0));
+    let o_42 = new Triangle(new Vector3(-2, 1, 0), new Vector3(-SQRT2, 1, SQRT2), new Vector3(-2, -1, 0));
     let o_51 = new Triangle(new Vector3(-2, -1, 0), new Vector3(-SQRT2, -1, -SQRT2), new Vector3(-2, 1, 0));
-    let o_52 = new Triangle(new Vector3(-2, 1, 0), new Vector3(-SQRT2, 1, -SQRT2), new Vector3(-SQRT2, -1, -SQRT2));
+    let o_52 = new Triangle(new Vector3(-SQRT2, 1, -SQRT2), new Vector3(-2, 1, 0), new Vector3(-SQRT2, -1, -SQRT2));
     let o_61 = new Triangle(new Vector3(-SQRT2, -1, -SQRT2), new Vector3(0, -1, -2), new Vector3(-SQRT2, 1, -SQRT2));
-    let o_62 = new Triangle(new Vector3(-SQRT2, 1, -SQRT2), new Vector3(0, 1, -2), new Vector3(0, -1, -2));
+    let o_62 = new Triangle(new Vector3(0, 1, -2), new Vector3(-SQRT2, 1, -SQRT2), new Vector3(0, -1, -2));
     let o_71 = new Triangle(new Vector3(0, -1, -2), new Vector3(SQRT2, -1, -SQRT2), new Vector3(0, 1, -2));
-    let o_72 = new Triangle(new Vector3(0, 1, -2), new Vector3(SQRT2, 1, -SQRT2), new Vector3(SQRT2, -1, -SQRT2));
+    let o_72 = new Triangle(new Vector3(SQRT2, 1, -SQRT2), new Vector3(0, 1, -2), new Vector3(SQRT2, -1, -SQRT2));
     let o_81 = new Triangle(new Vector3(SQRT2, -1, -SQRT2), new Vector3(2, -1, 0), new Vector3(SQRT2, 1, -SQRT2));
-    let o_82 = new Triangle(new Vector3(SQRT2, 1, -SQRT2), new Vector3(2, 1, 0), new Vector3(2, -1, 0));
+    let o_82 = new Triangle(new Vector3(2, 1, 0), new Vector3(SQRT2, 1, -SQRT2), new Vector3(2, -1, 0));
     // Inside ring
     let i_11 = new Triangle(new Vector3(1.5, 1, 0), new Vector3(INNER_SQRT2, 1, INNER_SQRT2), new Vector3(1.5, -0.5, 0));
-    let i_12 = new Triangle(new Vector3(1.5, -0.5, 0), new Vector3(INNER_SQRT2, -0.5, INNER_SQRT2), new Vector3(INNER_SQRT2, 1, INNER_SQRT2));
+    let i_12 = new Triangle(new Vector3(INNER_SQRT2, -0.5, INNER_SQRT2), new Vector3(1.5, -0.5, 0), new Vector3(INNER_SQRT2, 1, INNER_SQRT2));
     let i_21 = new Triangle(new Vector3(INNER_SQRT2, 1, INNER_SQRT2), new Vector3(0, 1, 1.5), new Vector3(INNER_SQRT2, -0.5, INNER_SQRT2));
-    let i_22 = new Triangle(new Vector3(INNER_SQRT2, -0.5, INNER_SQRT2), new Vector3(0, -0.5, 1.5), new Vector3(0, 1, 1.5));
+    let i_22 = new Triangle(new Vector3(0, -0.5, 1.5), new Vector3(INNER_SQRT2, -0.5, INNER_SQRT2), new Vector3(0, 1, 1.5));
     let i_31 = new Triangle(new Vector3(0, 1, 1.5), new Vector3(-INNER_SQRT2, 1, INNER_SQRT2), new Vector3(0, -0.5, 1.5));
-    let i_32 = new Triangle(new Vector3(0, -0.5, 1.5), new Vector3(-INNER_SQRT2, -0.5, INNER_SQRT2), new Vector3(-INNER_SQRT2, 1, INNER_SQRT2));
+    let i_32 = new Triangle(new Vector3(-INNER_SQRT2, -0.5, INNER_SQRT2), new Vector3(0, -0.5, 1.5), new Vector3(-INNER_SQRT2, 1, INNER_SQRT2));
     let i_41 = new Triangle(new Vector3(-INNER_SQRT2, 1, INNER_SQRT2), new Vector3(-1.5, 1, 0), new Vector3(-INNER_SQRT2, -0.5, INNER_SQRT2));
-    let i_42 = new Triangle(new Vector3(-INNER_SQRT2, -0.5, INNER_SQRT2), new Vector3(-1.5, -0.5, 0), new Vector3(-1.5, 1, 0));
+    let i_42 = new Triangle(new Vector3(-1.5, -0.5, 0), new Vector3(-INNER_SQRT2, -0.5, INNER_SQRT2), new Vector3(-1.5, 1, 0));
     let i_51 = new Triangle(new Vector3(-1.5, 1, 0), new Vector3(-INNER_SQRT2, 1, -INNER_SQRT2), new Vector3(-1.5, -0.5, 0));
-    let i_52 = new Triangle(new Vector3(-1.5, -0.5, 0), new Vector3(-INNER_SQRT2, -0.5, -INNER_SQRT2), new Vector3(-INNER_SQRT2, 1, -INNER_SQRT2));
+    let i_52 = new Triangle(new Vector3(-INNER_SQRT2, -0.5, -INNER_SQRT2), new Vector3(-1.5, -0.5, 0), new Vector3(-INNER_SQRT2, 1, -INNER_SQRT2));
     let i_61 = new Triangle(new Vector3(-INNER_SQRT2, 1, -INNER_SQRT2), new Vector3(0, 1, -1.5), new Vector3(-INNER_SQRT2, -0.5, -INNER_SQRT2));
-    let i_62 = new Triangle(new Vector3(-INNER_SQRT2, -0.5, -INNER_SQRT2), new Vector3(0, -0.5, -1.5), new Vector3(0, 1, -1.5));
+    let i_62 = new Triangle(new Vector3(0, -0.5, -1.5), new Vector3(-INNER_SQRT2, -0.5, -INNER_SQRT2), new Vector3(0, 1, -1.5));
     let i_71 = new Triangle(new Vector3(0, 1, -1.5), new Vector3(INNER_SQRT2, 1, -INNER_SQRT2), new Vector3(0, -0.5, -1.5));
-    let i_72 = new Triangle(new Vector3(0, -0.5, -1.5), new Vector3(INNER_SQRT2, -0.5, -INNER_SQRT2), new Vector3(INNER_SQRT2, 1, -INNER_SQRT2));
+    let i_72 = new Triangle(new Vector3(INNER_SQRT2, -0.5, -INNER_SQRT2), new Vector3(0, -0.5, -1.5), new Vector3(INNER_SQRT2, 1, -INNER_SQRT2));
     let i_81 = new Triangle(new Vector3(INNER_SQRT2, 1, -INNER_SQRT2), new Vector3(1.5, 1, 0), new Vector3(INNER_SQRT2, -0.5, -INNER_SQRT2));
-    let i_82 = new Triangle(new Vector3(INNER_SQRT2, -0.5, -INNER_SQRT2), new Vector3(1.5, -0.5, 0), new Vector3(1.5, 1, 0));
+    let i_82 = new Triangle(new Vector3(1.5, -0.5, 0), new Vector3(INNER_SQRT2, -0.5, -INNER_SQRT2), new Vector3(1.5, 1, 0));
     // Bottom
     let b_1 = new Triangle(new Vector3(1.5, -0.5, 0), new Vector3(INNER_SQRT2, -0.5, INNER_SQRT2), new Vector3(0, -0.5, 0));
     let b_2 = new Triangle(new Vector3(INNER_SQRT2, -0.5, INNER_SQRT2), new Vector3(0, -0.5, 1.5), new Vector3(0, -0.5, 0));
@@ -467,6 +478,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // - Rendering - //
 // Notes //
 // Directionality: y-up, right-handed (https://pbs.twimg.com/media/EmVSW5AW8AAoDD9.jpg:large)
+// Winding order: counter clock-wise
 function unpackObjects(objects) {
     let triangles = [];
     // Copies every triangle in all of the objects to be drawn (copied as the triangles will be mapped to screen space)
@@ -533,6 +545,14 @@ function worldToScreen(camera, camera_target, mvp_matrix, vector) {
     return new Vector3(vec_4.x, vec_4.y, vec_4.z);
 }
 function orderTriangles(triangles) {
+    // Removes triangles facing away from the camera
+    for (let tri = 0; tri < triangles.length; tri++) {
+        if (triangles[tri].facing() <= 0) {
+            triangles.splice(tri, 1);
+            tri--;
+            continue;
+        }
+    }
     // Removes triangles that would be drawn on screen when behind the camera
     for (let tri = 0; tri < triangles.length; tri++) {
         let verts = [triangles[tri].vert_1, triangles[tri].vert_2, triangles[tri].vert_3];
@@ -659,8 +679,8 @@ let execute = true; // When false, the engine will stop running
 // Canvas
 let canvas;
 let ctx;
-// const CANVAS_SIZE = new Vector2(1920, 1080); // Computer
-const CANVAS_SIZE = new Vector2(1000, 580); // Laptop
+const CANVAS_SIZE = new Vector2(1920, 1080); // Computer
+// const CANVAS_SIZE = new Vector2(1000, 580); // Laptop
 const DIST_SCALE = 0.1;
 function canvasInit() {
     // Init canvas and context
@@ -681,26 +701,33 @@ function canvasInit() {
 let world_objects = [];
 let active_camera;
 const WORLD_BOUNDRY = 40;
+const SKY_HEIGHT = 130;
+// Game
+let basket;
 // Creates and instantiates all objects
 function worldInit() {
     // Init camera
     active_camera = new Camera(new Vector3(0, 25, 0));
     // World objects
-    let reference_box = new Box(new Vector3(0, 0, 0), new Vector3(0, 0, 0), new Vector3(0.1, 0.1, 0.1), [new RGB(0, 0, 0)]);
     let ground_colour = new RGB(46, 173, 3);
-    let ground_size = WORLD_BOUNDRY + 15;
+    let ground_size = (WORLD_BOUNDRY + 15) * 0.5;
     let wall_colour = new RGB(145, 97, 38);
     let wall_height = 4;
     let sky_colour = new RGB(61, 200, 255);
-    let sky_height = 130;
-    let ground = new Box(new Vector3(0, -ground_size, 0), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
-    let sky = new Plane(new Vector3(0, sky_height, 0), new Vector3(90, 0, 0), new Vector3(ground_size * 1.5, ground_size * 1.5, 0), [sky_colour]);
-    let wall_1 = new Plane(new Vector3(-ground_size, wall_height, 0), new Vector3(0, 90, 0), new Vector3(ground_size, wall_height, 1), [wall_colour]);
-    let wall_2 = new Plane(new Vector3(ground_size, wall_height, 0), new Vector3(0, 90, 0), new Vector3(ground_size, wall_height, 1), [wall_colour]);
-    let wall_3 = new Plane(new Vector3(0, wall_height, -ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, wall_height, 1), [wall_colour]);
-    let wall_4 = new Plane(new Vector3(0, wall_height, ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, wall_height, 1), [wall_colour]);
-    let basket = new Basket(new Vector3(0, 20, 0), new Vector3(0, 0, 0), new Vector3(0.5, 0.8, 0.5), new RGB(255, 255, 20), new RGB(196, 196, 53));
-    world_objects.push(ground, sky, wall_1, wall_2, wall_3, wall_4, basket);
+    let sky_border_size = 10;
+    let sky_border_colour = new RGB(30, 30, 30);
+    let ground_1 = new Box(new Vector3(ground_size, -ground_size, ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
+    let ground_2 = new Box(new Vector3(ground_size, -ground_size, -ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
+    let ground_3 = new Box(new Vector3(-ground_size, -ground_size, ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
+    let ground_4 = new Box(new Vector3(-ground_size, -ground_size, -ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
+    let sky = new Plane(new Vector3(0, SKY_HEIGHT, 0), new Vector3(90, 0, 0), new Vector3(ground_size * 1.5, ground_size * 1.5, 0), [sky_colour]);
+    let sky_border = new Plane(new Vector3(0, SKY_HEIGHT + 5, 0), new Vector3(90, 0, 0), new Vector3(ground_size * 1.5 + sky_border_size, ground_size * 1.5 + sky_border_size, 0), [sky_border_colour]);
+    let wall_1 = new Plane(new Vector3(-ground_size * 2, wall_height, 0), new Vector3(0, 90, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
+    let wall_2 = new Plane(new Vector3(ground_size * 2, wall_height, 0), new Vector3(0, -90, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
+    let wall_3 = new Plane(new Vector3(0, wall_height, -ground_size * 2), new Vector3(0, 180, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
+    let wall_4 = new Plane(new Vector3(0, wall_height, ground_size * 2), new Vector3(0, 0, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
+    basket = new Basket(new Vector3(0, 20, 0), new Vector3(0, 0, 0), new Vector3(0.25, 0.4, 0.25), new RGB(255, 255, 20), new RGB(196, 196, 53));
+    world_objects.push(ground_1, ground_2, ground_3, ground_4, sky, sky_border, wall_1, wall_2, wall_3, wall_4, basket);
 }
 function ready() {
     canvasInit();
@@ -720,9 +747,61 @@ function process(timestamp) {
         if (!active_camera.no_clip) {
             clipCameraPos();
         }
+        updateGame();
         frame++;
         if (execute) {
             requestAnimationFrame(process);
         }
     });
+}
+// - Game Logic - //
+// Manages the logic for game functionality
+function updateGame() {
+    basket.position = active_camera.position.add(active_camera.facing().scale(-2));
+    basket.position.y = active_camera.position.y - 100; // TODO: Set back to 1
+    bananaManager();
+}
+// Bananas that current exist in the game
+let active_bananas = [];
+const MAX_BANANAS = 30;
+const BANANA_BUNCHES = 3; // How many bananas are spawned at once
+let banana_speed = 0.3;
+let banana_spawn_timer = 0;
+let banana_spawn_delay = 100; // In milliseconds
+// TODO: Make it so that bananas are only spawned every 1 second or something
+function bananaManager() {
+    if (active_bananas.length < MAX_BANANAS && banana_spawn_timer <= 0) {
+        banana_spawn_timer = banana_spawn_delay;
+        for (let banana = 0; banana < BANANA_BUNCHES; banana++) {
+            let new_banana = spawnRandomBanana();
+            active_bananas.push(new_banana);
+            world_objects.push(new_banana);
+        }
+    }
+    banana_spawn_timer -= delta;
+    for (let banana = 0; banana < active_bananas.length; banana++) {
+        if (bananaColliding(active_bananas[banana])) {
+            world_objects.splice(world_objects.indexOf(active_bananas[banana]), 1);
+            active_bananas.splice(active_bananas.indexOf(active_bananas[banana]), 1);
+        }
+        else {
+            active_bananas[banana].position.y -= delta * banana_speed;
+        }
+    }
+}
+// TODO: Implement colours
+let banana_colours = [new RGB(250, 250, 55)];
+function spawnRandomBanana() {
+    let position = new Vector3(rand_int(-WORLD_BOUNDRY, WORLD_BOUNDRY * 2), SKY_HEIGHT + rand_int(-9, -2), rand_int(-WORLD_BOUNDRY, WORLD_BOUNDRY * 2));
+    let rotation = new Vector3(0, rand_int(0, 359), 0);
+    let scale = rand_int(0.35, 0.45);
+    let colour = new RGB(250, 250, 55);
+    return new Banana(position, rotation, new Vector3(scale, scale, scale), colour);
+}
+// TODO: Implement basket collision and colour detection + score
+function bananaColliding(banana) {
+    if (banana.position.y <= 7) {
+        return true;
+    }
+    return false;
 }
