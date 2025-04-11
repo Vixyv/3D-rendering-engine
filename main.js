@@ -106,10 +106,6 @@ class Quanternion {
         let length = Math.sqrt(this.x ** 2 + this.y ** 2 + this.z * 2 + this.w ** 2);
         return new Quanternion(this.x / length, this.y / length, this.z / length, this.w / length);
     }
-    // Order: This Quanternion * Different Quanternion
-    quanMult(quan) {
-        return new Quanternion(this.w * quan.x + quan.w * this.x + this.y * quan.z - this.z * quan.y, this.w * quan.y + quan.w * this.y + this.z * quan.x - this.x * quan.z, this.w * quan.z + quan.w * this.z + this.x * quan.y - this.y * quan.x, this.w * quan.w - this.x * quan.x - this.y * quan.z - this.z * quan.z);
-    }
 }
 // - Object Classes - //
 class Camera {
@@ -125,8 +121,8 @@ class Camera {
         _Camera_near.set(this, 1);
         _Camera_far.set(this, 1000);
         _Camera_fov.set(this, 90);
-        this.pitch_clamp = new Vector2(-89, 89); // Lower and upper vertical clamps on
-        this.no_clip = true;
+        this.pitch_clamp = new Vector2(-50, 78); // Lower and upper vertical clamps on
+        this.no_clip = false;
         // Perspective projection matrix
         this.projection_matrix = matrix(4, 4);
         this.position = position === undefined ? this.position : position;
@@ -584,6 +580,28 @@ function drawTriangle(triangle) {
     ctx.fill();
     ctx.closePath();
 }
+function drawUI() {
+    ctx.font = "50px Helvetica";
+    ctx.textAlign = "left";
+    ctx.lineWidth = 1.5;
+    ctx.lineJoin = "round";
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillText("Level: " + (level + 1), 10, 50);
+    ctx.fillStyle = "#000000";
+    ctx.strokeText("Level: " + (level + 1), 10, 50);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillText("Score: " + score, 10, 105);
+    ctx.fillStyle = "#000000";
+    ctx.strokeText("Score: " + score, 10, 105);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillText("Quota: " + quota[level], 10, 160);
+    ctx.fillStyle = "#000000";
+    ctx.strokeText("Quota: " + quota[level], 10, 160);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillText("Time: " + Math.ceil(quota_timer * 0.01), 10, 215);
+    ctx.fillStyle = "#000000";
+    ctx.strokeText("Time: " + Math.ceil(quota_timer * 0.01), 10, 215);
+}
 function render(camera, objects) {
     let unmapped_triangles = unpackObjects(objects);
     let mvp_matrix = makeMVPMatrix(camera);
@@ -593,6 +611,65 @@ function render(camera, objects) {
     drawSkyBox();
     for (let tri = 0; tri < ordered_triangles.length; tri++) {
         drawTriangle(ordered_triangles[tri]);
+    }
+    drawUI();
+}
+// Screens for the start and end of the game
+function gameStartScreen() {
+    ctx.fillStyle = "#F2D16D";
+    ctx.beginPath();
+    ctx.fillRect(0, 0, CANVAS_SIZE.x, CANVAS_SIZE.y);
+    ctx.textAlign = "center";
+    ctx.font = "50px Helvetica";
+    ctx.fillStyle = "#000000";
+    ctx.fillText("Bonzo Bananas", CANVAS_SIZE.x / 2, CANVAS_SIZE.y / 2 - 30);
+    ctx.font = "35px Helvetica";
+    ctx.fillStyle = "#000000";
+    ctx.fillText("click on the screen to start", CANVAS_SIZE.x / 2, CANVAS_SIZE.y / 2 + 30);
+}
+// TODO: Just use a semi transparent background + some text
+function gamePauseScreen() {
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = "rgb(131, 131, 131)";
+    ctx.beginPath();
+    ctx.fillRect(0, 0, CANVAS_SIZE.x, CANVAS_SIZE.y);
+    ctx.globalAlpha = 1;
+    ctx.textAlign = "center";
+    ctx.font = "50px Helvetica";
+    ctx.fillStyle = "#000000";
+    ctx.fillText("Game Paused", CANVAS_SIZE.x / 2, CANVAS_SIZE.y / 2 - 30);
+    ctx.font = "35px Helvetica";
+    ctx.fillStyle = "#000000";
+    ctx.fillText("click on the screen to unpause", CANVAS_SIZE.x / 2, CANVAS_SIZE.y / 2 + 30);
+}
+function gameEndScreen(win) {
+    execute = false;
+    game_over = true;
+    if (win) {
+        new Audio("game_won.mp3").play();
+        ctx.fillStyle = "#8DF279";
+        ctx.beginPath();
+        ctx.fillRect(0, 0, CANVAS_SIZE.x, CANVAS_SIZE.y);
+        ctx.textAlign = "center";
+        ctx.font = "50px Helvetica";
+        ctx.fillStyle = "#000000";
+        ctx.fillText("Game Over, You Won!", CANVAS_SIZE.x / 2, CANVAS_SIZE.y / 2 - 30);
+        ctx.font = "35px Helvetica";
+        ctx.fillStyle = "#000000";
+        ctx.fillText("press r to play again", CANVAS_SIZE.x / 2, CANVAS_SIZE.y / 2 + 30);
+    }
+    else {
+        new Audio("game_lost.mp3").play();
+        ctx.fillStyle = "#F27979";
+        ctx.beginPath();
+        ctx.fillRect(0, 0, CANVAS_SIZE.x, CANVAS_SIZE.y);
+        ctx.textAlign = "center";
+        ctx.font = "50px Helvetica";
+        ctx.fillStyle = "#000000";
+        ctx.fillText("Game Over, You Lost", CANVAS_SIZE.x / 2, CANVAS_SIZE.y / 2 - 30);
+        ctx.font = "35px Helvetica";
+        ctx.fillStyle = "#000000";
+        ctx.fillText("press r to play again", CANVAS_SIZE.x / 2, CANVAS_SIZE.y / 2 + 30);
     }
 }
 // - Input - //
@@ -609,14 +686,17 @@ function inputInit() {
         if (CAMERA_CONTROLLER[ev.key]) {
             CAMERA_CONTROLLER[ev.key].pressed = true;
         }
-        if (TOGGLE_CONTROLLER[ev.key]) {
-            TOGGLE_CONTROLLER[ev.key].func();
+        if (BUTTON_CONTROLLER[ev.key]) {
+            BUTTON_CONTROLLER[ev.key].pressed = true;
         }
     });
     document.addEventListener("keyup", (ev) => {
         // Checks if the key pressed is used to control the camera
         if (CAMERA_CONTROLLER[ev.key]) {
             CAMERA_CONTROLLER[ev.key].pressed = false;
+        }
+        if (BUTTON_CONTROLLER[ev.key]) {
+            BUTTON_CONTROLLER[ev.key].pressed = false;
         }
     });
     // Init mouse input (adapted from https://developer.mozilla.org/en-US/docs/Web/API/Pointer_Lock_API)
@@ -645,26 +725,40 @@ const CAMERA_CONTROLLER = {
     "q": { pressed: false, func: (camera) => camera.move(new Vector3(0, -move_speed, 0)) }, // Down
     "e": { pressed: false, func: (camera) => camera.move(new Vector3(0, move_speed, 0)) }, // Up
 };
-const TOGGLE_CONTROLLER = {
-    "Shift": { func: () => move_speed = BASE_MOVE_SPEED * 2 },
-    "Control": { func: () => move_speed = BASE_MOVE_SPEED },
+const BUTTON_CONTROLLER = {
+    "r": { pressed: false, func: () => { console.log(game_over); if (game_over) {
+            resetGame();
+        } } },
 };
 function mouseCapture() {
     if (document.pointerLockElement === canvas) {
         document.addEventListener("mousemove", mouseRotateCamera, false);
+        if (!game_over) {
+            execute = true;
+            requestAnimationFrame((timestamp) => process(timestamp, true));
+        }
     }
     else {
         document.removeEventListener("mousemove", mouseRotateCamera, false);
+        if (!game_over) {
+            execute = false;
+            setTimeout(gamePauseScreen, 5); // Ensures that the pause screen is drawn on top of the last frame
+        }
     }
 }
 function mouseRotateCamera(ev) {
     active_camera.rotate(new Vector2(ev.movementX * MOUSE_X_SENS, -ev.movementY * MOUSE_Y_SENS));
 }
 // Executes all moves based upon current inputs
-function executeMoves() {
+function executeCameraInputs() {
     // Derived from (https://medium.com/@dovern42/handling-multiple-key-presses-at-once-in-vanilla-javascript-for-game-controllers-6dcacae931b7)
     Object.keys(CAMERA_CONTROLLER).forEach(key => {
         CAMERA_CONTROLLER[key].pressed && CAMERA_CONTROLLER[key].func(active_camera);
+    });
+}
+function executeButtonInputs() {
+    Object.keys(BUTTON_CONTROLLER).forEach(key => {
+        BUTTON_CONTROLLER[key].pressed && BUTTON_CONTROLLER[key].func();
     });
 }
 function toggleNoClip() {
@@ -675,10 +769,11 @@ function clipCameraPos() {
     active_camera.position.z = clamp(active_camera.position.z, -WORLD_BOUNDRY, WORLD_BOUNDRY);
 }
 // - Init - //
-let execute = true; // When false, the engine will stop running
+let execute = false; // When false, the engine will stop running
 // Canvas
 let canvas;
 let ctx;
+// TODO: Make the canvas size dynamic for any window size (even if it changes)
 const CANVAS_SIZE = new Vector2(1920, 1080); // Computer
 // const CANVAS_SIZE = new Vector2(1000, 580); // Laptop
 const DIST_SCALE = 0.1;
@@ -707,7 +802,7 @@ let basket;
 // Creates and instantiates all objects
 function worldInit() {
     // Init camera
-    active_camera = new Camera(new Vector3(0, 25, 0));
+    active_camera = new Camera(new Vector3(0.1, 25, 0.1));
     // World objects
     let ground_colour = new RGB(46, 173, 3);
     let ground_size = (WORLD_BOUNDRY + 15) * 0.5;
@@ -733,24 +828,27 @@ function ready() {
     canvasInit();
     inputInit();
     worldInit();
-    requestAnimationFrame(process);
+    gameStartScreen();
 }
-let frame = 0; // Number of frames
 let last_animation_frame = 0;
 let delta = 0; // Represents the amount of time since the last animation frame
-function process(timestamp) {
+function process(timestamp, unpaused) {
     return __awaiter(this, void 0, void 0, function* () {
-        delta = (timestamp - last_animation_frame) * 0.1;
+        // Unpaused is true if the engine was just unpaused (stoped and then started again)
+        delta = unpaused ? 0 : (timestamp - last_animation_frame) * 0.1;
         last_animation_frame = timestamp;
-        render(active_camera, world_objects);
-        executeMoves();
-        if (!active_camera.no_clip) {
-            clipCameraPos();
-        }
-        updateGame();
-        frame++;
+        executeButtonInputs();
         if (execute) {
-            requestAnimationFrame(process);
+            render(active_camera, world_objects);
+            executeCameraInputs();
+            if (!active_camera.no_clip) {
+                clipCameraPos();
+            }
+            updateGame();
+            requestAnimationFrame((timestamp) => process(timestamp, false));
+        }
+        else {
+            requestAnimationFrame((timestamp) => process(timestamp, true));
         }
     });
 }
@@ -758,21 +856,79 @@ function process(timestamp) {
 // Manages the logic for game functionality
 function updateGame() {
     basket.position = active_camera.position.add(active_camera.facing().scale(-2));
-    basket.position.y = active_camera.position.y - 100; // TODO: Set back to 1
+    basket.position.y = active_camera.position.y - 1;
     bananaManager();
 }
+function resetGame() {
+    active_camera.position = new Vector3(0.1, 25, 0.1);
+    score = 0;
+    level = 0;
+    quota_timer = quota_time[level];
+    game_over = false;
+    requestAnimationFrame((timestamp) => process(timestamp, true));
+}
+let game_over = false;
+let score = 0;
+let level = 0;
+let quota = {
+    0: 3,
+    1: 5,
+    2: 8,
+    3: 10,
+    4: 15,
+    5: 20,
+};
+// In milliseconds
+let quota_time = {
+    0: 2000,
+    1: 1800,
+    2: 1500,
+    3: 1400,
+    4: 1400,
+    5: 1500,
+};
+let quota_timer = quota_time[level];
 // Bananas that current exist in the game
 let active_bananas = [];
-const MAX_BANANAS = 30;
-const BANANA_BUNCHES = 3; // How many bananas are spawned at once
-let banana_speed = 0.3;
+let max_bananas = {
+    0: 10,
+    1: 20,
+    2: 30,
+    3: 20,
+    4: 30,
+    5: 30,
+};
+// How many bananas are spawned at once
+let banana_bunches = {
+    0: 1,
+    1: 1,
+    2: 2,
+    3: 2,
+    4: 3,
+    5: 3,
+};
+let banana_speed = {
+    0: 1,
+    1: 1,
+    2: 2,
+    3: 3,
+    4: 4,
+    5: 5,
+};
+// In milliseconds
+let banana_spawn_delay = {
+    0: 100,
+    1: 70,
+    2: 50,
+    3: 40,
+    4: 20,
+    5: 10,
+};
 let banana_spawn_timer = 0;
-let banana_spawn_delay = 100; // In milliseconds
-// TODO: Make it so that bananas are only spawned every 1 second or something
 function bananaManager() {
-    if (active_bananas.length < MAX_BANANAS && banana_spawn_timer <= 0) {
-        banana_spawn_timer = banana_spawn_delay;
-        for (let banana = 0; banana < BANANA_BUNCHES; banana++) {
+    if (active_bananas.length < max_bananas[level] && banana_spawn_timer <= 0) {
+        banana_spawn_timer = banana_spawn_delay[level];
+        for (let banana = 0; banana < banana_bunches[level]; banana++) {
             let new_banana = spawnRandomBanana();
             active_bananas.push(new_banana);
             world_objects.push(new_banana);
@@ -785,23 +941,58 @@ function bananaManager() {
             active_bananas.splice(active_bananas.indexOf(active_bananas[banana]), 1);
         }
         else {
-            active_bananas[banana].position.y -= delta * banana_speed;
+            active_bananas[banana].position.y -= delta * (0.2 * banana_speed[level]);
         }
     }
+    if (quota_timer < 0) {
+        setTimeout(() => gameEndScreen(false), 5); // Ensures that the game end screen is drawn on top of the last frame
+    }
+    quota_timer -= delta;
 }
-// TODO: Implement colours
-let banana_colours = [new RGB(250, 250, 55)];
 function spawnRandomBanana() {
     let position = new Vector3(rand_int(-WORLD_BOUNDRY, WORLD_BOUNDRY * 2), SKY_HEIGHT + rand_int(-9, -2), rand_int(-WORLD_BOUNDRY, WORLD_BOUNDRY * 2));
     let rotation = new Vector3(0, rand_int(0, 359), 0);
-    let scale = rand_int(0.35, 0.45);
+    let scale = rand_int(0.15, 0.25);
     let colour = new RGB(250, 250, 55);
     return new Banana(position, rotation, new Vector3(scale, scale, scale), colour);
 }
-// TODO: Implement basket collision and colour detection + score
 function bananaColliding(banana) {
     if (banana.position.y <= 7) {
         return true;
     }
+    // Bounding boxes of the banana and basket
+    // Very forgiving
+    let min_x = basket.position.x - basket.scale.x * 1.6 - banana.scale.x * 10;
+    let max_x = basket.position.x + basket.scale.x * 1.6 + banana.scale.x * 10;
+    let min_z = basket.position.z - basket.scale.z * 1.6 - banana.scale.z * 10;
+    let max_z = basket.position.z + basket.scale.z * 1.6 + banana.scale.z * 10;
+    let max_y = basket.position.y + basket.scale.y + 1;
+    if (banana.position.y < max_y && banana.position.x > min_x && banana.position.x < max_x && banana.position.z > min_z && banana.position.z < max_z) {
+        bananaCollected();
+        return true;
+    }
     return false;
+}
+function bananaCollected() {
+    score++;
+    new Audio("score_sound.mp3").play(); // Allows for the sound to be played overtop of itself
+    if (score >= quota[level]) {
+        levelUp();
+    }
+}
+function levelUp() {
+    level++;
+    quota_timer = quota_time[level];
+    if (level > 5) {
+        setTimeout(() => gameEndScreen(true), 5); // Ensures that the game end screen is drawn on top of the last frame
+    }
+    setTimeout(() => {
+        score = 0;
+        new Audio("quota_sound.mp3").play();
+        let current_banana_amount = active_bananas.length;
+        for (let banana = 0; banana < current_banana_amount; banana++) {
+            world_objects.splice(world_objects.indexOf(active_bananas[banana]), 1);
+            active_bananas.splice(active_bananas.indexOf(active_bananas[banana]), 1);
+        }
+    }, 500);
 }
