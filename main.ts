@@ -838,7 +838,7 @@ function gameEndScreen(win: boolean) {
     game_over = true;
 
     if (win) {
-        new Audio("game_won.mp3").play();
+        new Audio("sounds/game_won.mp3").play();
 
         ctx.fillStyle = "#8DF279";
         ctx.beginPath();
@@ -853,7 +853,7 @@ function gameEndScreen(win: boolean) {
         ctx.fillText("press r to play again", CANVAS_SIZE.x/2, CANVAS_SIZE.y/2 + 30);
         
     } else {
-        new Audio("game_lost.mp3").play();
+        new Audio("sounds/game_lost.mp3").play();
 
         ctx.fillStyle = "#F27979";
         ctx.beginPath();
@@ -933,7 +933,7 @@ const CAMERA_CONTROLLER: {[key: string]: {pressed: boolean; func: (camera: Camer
 }
 
 const BUTTON_CONTROLLER: {[key: string]: {pressed: boolean; func: () => void;}} = {
-    "r": {pressed: false, func: () => { console.log(game_over); if (game_over) { resetGame(); } } },
+    "r": {pressed: false, func: () => { if (game_over) { resetGame(); } } },
 }
 
 function mouseCapture() {
@@ -1101,12 +1101,16 @@ function updateGame() {
     bananaManager();
 }
 
+// TODO: Doesn't work yet
 function resetGame() {
     active_camera.position = new Vector3(0.1, 25, 0.1);
     score = 0;
     level = 0;
     quota_timer = quota_time[level];
     game_over = false;
+    execute = true;
+    clearBananas();
+    
     requestAnimationFrame((timestamp: DOMHighResTimeStamp) => process(timestamp, true));
 }
 
@@ -1214,6 +1218,14 @@ function spawnRandomBanana() : Banana {
     return new Banana(position, rotation, new Vector3(scale, scale, scale), colour)
 }
 
+function clearBananas() {
+    let current_banana_amount = active_bananas.length;
+    for (let banana=0; banana<current_banana_amount; banana++) {
+        world_objects.splice(world_objects.indexOf(active_bananas[banana]), 1);
+        active_bananas.splice(active_bananas.indexOf(active_bananas[banana]), 1);
+    }
+}
+
 function bananaColliding(banana: Banana) : boolean {
     if (banana.position.y <= 7) {
         return true
@@ -1237,7 +1249,7 @@ function bananaColliding(banana: Banana) : boolean {
 
 function bananaCollected() {
     score++;
-    new Audio("score_sound.mp3").play() // Allows for the sound to be played overtop of itself
+    new Audio("sounds/score_sound.mp3").play() // Allows for the sound to be played overtop of itself
     if (score >= quota[level]) {
         levelUp();
     }
@@ -1253,11 +1265,7 @@ function levelUp() {
     
     setTimeout(() => {
         score = 0;
-        new Audio("quota_sound.mp3").play();
-        let current_banana_amount = active_bananas.length
-        for (let banana=0; banana<current_banana_amount; banana++) {
-            world_objects.splice(world_objects.indexOf(active_bananas[banana]), 1);
-            active_bananas.splice(active_bananas.indexOf(active_bananas[banana]), 1);
-        }
+        new Audio("sounds/quota_sound.mp3").play();
+        clearBananas();
     }, 500)
 }

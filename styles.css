@@ -1,3 +1,18 @@
+body {
+    background-image: url("banana_background.png");
+    background-size: 100px 100px;
+    animation: banana-loop 4s linear infinite;
+}
+  
+@keyframes banana-loop {
+    0% {
+        background-position: 0px 0px;
+    }
+    100% {
+        background-position: 100px -100px;
+    }
+}
+
 canvas {
     margin-left: auto;
     margin-right: auto;
