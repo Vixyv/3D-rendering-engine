@@ -20,7 +20,7 @@ var __classPrivateFieldGet = (this && this.__classPrivateFieldGet) || function (
     if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
     return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
 };
-var _Camera_instances, _Camera_near, _Camera_far, _Camera_fov, _Camera_makePerspectiveProjectionMatrix, _ObjectNode_instances, _ObjectNode_modelToWorld, _Box_instances, _Box_createMesh, _Plane_instances, _Plane_createMesh, _Banana_instances, _Banana_createTexture, _Banana_createMesh, _Basket_instances, _Basket_createTexture, _Basket_createMesh;
+var _Camera_near, _Camera_far, _Camera_fov, _ObjectNode_instances, _ObjectNode_modelToWorld, _Box_instances, _Box_createMesh, _Plane_instances, _Plane_createMesh, _Banana_instances, _Banana_createTexture, _Banana_createMesh, _Basket_instances, _Basket_createTexture, _Basket_createMesh;
 class Vector2 {
     constructor(x, y) {
         this.x = 0;
@@ -109,11 +109,10 @@ class Quanternion {
 }
 // - Object Classes - //
 class Camera {
-    set near(value) { __classPrivateFieldSet(this, _Camera_near, value, "f"); __classPrivateFieldGet(this, _Camera_instances, "m", _Camera_makePerspectiveProjectionMatrix).call(this); }
-    set far(value) { __classPrivateFieldSet(this, _Camera_far, value, "f"); __classPrivateFieldGet(this, _Camera_instances, "m", _Camera_makePerspectiveProjectionMatrix).call(this); }
-    set fov(value) { __classPrivateFieldSet(this, _Camera_fov, value, "f"); __classPrivateFieldGet(this, _Camera_instances, "m", _Camera_makePerspectiveProjectionMatrix).call(this); }
+    set near(value) { __classPrivateFieldSet(this, _Camera_near, value, "f"); this.makePerspectiveProjectionMatrix(); }
+    set far(value) { __classPrivateFieldSet(this, _Camera_far, value, "f"); this.makePerspectiveProjectionMatrix(); }
+    set fov(value) { __classPrivateFieldSet(this, _Camera_fov, value, "f"); this.makePerspectiveProjectionMatrix(); }
     constructor(position, view_angle, near, far, fov, pitch_clamp) {
-        _Camera_instances.add(this);
         // State
         this.position = new Vector3(0, 0, 0);
         this.view_angle = new Vector2(0, 0); // (yaw, pitch) in degrees
@@ -131,7 +130,19 @@ class Camera {
         __classPrivateFieldSet(this, _Camera_far, far === undefined ? __classPrivateFieldGet(this, _Camera_far, "f") : far, "f");
         __classPrivateFieldSet(this, _Camera_fov, fov === undefined ? __classPrivateFieldGet(this, _Camera_fov, "f") : fov, "f");
         this.pitch_clamp = pitch_clamp === undefined ? this.pitch_clamp : pitch_clamp;
-        __classPrivateFieldGet(this, _Camera_instances, "m", _Camera_makePerspectiveProjectionMatrix).call(this);
+        this.makePerspectiveProjectionMatrix();
+    }
+    // The projection matrix is apart of the camera class because each projection matrix
+    // is individual to a camera's settings and need to instantiated for each camera in
+    // order for rendering to function properly.
+    // Derived from https://www.youtube.com/watch?v=EqNcqBdrNyI.
+    makePerspectiveProjectionMatrix() {
+        let SCALE = 1 / Math.tan(__classPrivateFieldGet(this, _Camera_fov, "f") * 0.5 * Math.PI / 180);
+        this.projection_matrix[0][0] = SCALE;
+        this.projection_matrix[1][1] = (canvas_size.x / canvas_size.y) * SCALE;
+        this.projection_matrix[2][2] = (__classPrivateFieldGet(this, _Camera_far, "f") + __classPrivateFieldGet(this, _Camera_near, "f")) / (__classPrivateFieldGet(this, _Camera_near, "f") - __classPrivateFieldGet(this, _Camera_far, "f"));
+        this.projection_matrix[2][3] = -1.0;
+        this.projection_matrix[3][2] = (2 * __classPrivateFieldGet(this, _Camera_far, "f") * __classPrivateFieldGet(this, _Camera_near, "f")) / (__classPrivateFieldGet(this, _Camera_near, "f") - __classPrivateFieldGet(this, _Camera_far, "f"));
     }
     rotate(rotation) {
         this.view_angle = this.view_angle.add(rotation);
@@ -166,14 +177,7 @@ class Camera {
     // Moves the camera relative to the world axes
     translate(vector) { this.position = this.position.add(vector); }
 }
-_Camera_near = new WeakMap(), _Camera_far = new WeakMap(), _Camera_fov = new WeakMap(), _Camera_instances = new WeakSet(), _Camera_makePerspectiveProjectionMatrix = function _Camera_makePerspectiveProjectionMatrix() {
-    let SCALE = 1 / Math.tan(__classPrivateFieldGet(this, _Camera_fov, "f") * 0.5 * Math.PI / 180);
-    this.projection_matrix[0][0] = SCALE;
-    this.projection_matrix[1][1] = (CANVAS_SIZE.x / CANVAS_SIZE.y) * SCALE;
-    this.projection_matrix[2][2] = (__classPrivateFieldGet(this, _Camera_far, "f") + __classPrivateFieldGet(this, _Camera_near, "f")) / (__classPrivateFieldGet(this, _Camera_near, "f") - __classPrivateFieldGet(this, _Camera_far, "f"));
-    this.projection_matrix[2][3] = -1.0;
-    this.projection_matrix[3][2] = (2 * __classPrivateFieldGet(this, _Camera_far, "f") * __classPrivateFieldGet(this, _Camera_near, "f")) / (__classPrivateFieldGet(this, _Camera_near, "f") - __classPrivateFieldGet(this, _Camera_far, "f"));
-};
+_Camera_near = new WeakMap(), _Camera_far = new WeakMap(), _Camera_fov = new WeakMap();
 class RGB {
     constructor(red, green, blue) {
         this.r = red;
@@ -536,8 +540,8 @@ function worldToScreen(camera, camera_target, mvp_matrix, vector) {
         // vec_4.z = vec_4.z/(vec_4.w);
     }
     // Map to canvas
-    vec_4.x = CANVAS_SIZE.x * 0.5 * (vec_4.x + 1);
-    vec_4.y = CANVAS_SIZE.y * 0.5 * (1 - vec_4.y);
+    vec_4.x = canvas_size.x * 0.5 * (vec_4.x + 1);
+    vec_4.y = canvas_size.y * 0.5 * (1 - vec_4.y);
     return new Vector3(vec_4.x, vec_4.y, vec_4.z);
 }
 function orderTriangles(triangles) {
@@ -568,7 +572,7 @@ function orderTriangles(triangles) {
 function drawSkyBox() {
     ctx.fillStyle = "rgb(255, 255, 255)";
     ctx.beginPath();
-    ctx.fillRect(0, 0, CANVAS_SIZE.x, CANVAS_SIZE.y);
+    ctx.fillRect(0, 0, canvas_size.x, canvas_size.y);
 }
 function drawTriangle(triangle) {
     // For some reason Triangle loses its object-ness and RGB needs to be reinstantiated to call toStr()
@@ -618,58 +622,64 @@ function render(camera, objects) {
 function gameStartScreen() {
     ctx.fillStyle = "#F2D16D";
     ctx.beginPath();
-    ctx.fillRect(0, 0, CANVAS_SIZE.x, CANVAS_SIZE.y);
+    ctx.fillRect(0, 0, canvas_size.x, canvas_size.y);
     ctx.textAlign = "center";
     ctx.font = "50px Helvetica";
     ctx.fillStyle = "#000000";
-    ctx.fillText("Bonzo Bananas", CANVAS_SIZE.x / 2, CANVAS_SIZE.y / 2 - 30);
+    ctx.fillText("Bonzo Bananas", canvas_size.x / 2, canvas_size.y / 2 - 30);
     ctx.font = "35px Helvetica";
     ctx.fillStyle = "#000000";
-    ctx.fillText("click on the screen to start", CANVAS_SIZE.x / 2, CANVAS_SIZE.y / 2 + 30);
+    ctx.fillText("click on the screen to start", canvas_size.x / 2, canvas_size.y / 2 + 30);
 }
 // TODO: Just use a semi transparent background + some text
 function gamePauseScreen() {
     ctx.globalAlpha = 0.5;
     ctx.fillStyle = "rgb(131, 131, 131)";
     ctx.beginPath();
-    ctx.fillRect(0, 0, CANVAS_SIZE.x, CANVAS_SIZE.y);
+    ctx.fillRect(0, 0, canvas_size.x, canvas_size.y);
     ctx.globalAlpha = 1;
     ctx.textAlign = "center";
     ctx.font = "50px Helvetica";
     ctx.fillStyle = "#000000";
-    ctx.fillText("Game Paused", CANVAS_SIZE.x / 2, CANVAS_SIZE.y / 2 - 30);
+    ctx.fillText("Game Paused", canvas_size.x / 2, canvas_size.y / 2 - 30);
     ctx.font = "35px Helvetica";
     ctx.fillStyle = "#000000";
-    ctx.fillText("click on the screen to unpause", CANVAS_SIZE.x / 2, CANVAS_SIZE.y / 2 + 30);
+    ctx.fillText("click on the screen to unpause", canvas_size.x / 2, canvas_size.y / 2 + 30);
 }
 function gameEndScreen(win) {
     execute = false;
     game_over = true;
     if (win) {
-        new Audio("sounds/game_won.mp3").play();
+        if (game_state != GameStates.Over) {
+            new Audio("sounds/game_won.mp3").play();
+        }
+        game_state = GameStates.Over;
         ctx.fillStyle = "#8DF279";
         ctx.beginPath();
-        ctx.fillRect(0, 0, CANVAS_SIZE.x, CANVAS_SIZE.y);
+        ctx.fillRect(0, 0, canvas_size.x, canvas_size.y);
         ctx.textAlign = "center";
         ctx.font = "50px Helvetica";
         ctx.fillStyle = "#000000";
-        ctx.fillText("Game Over, You Won!", CANVAS_SIZE.x / 2, CANVAS_SIZE.y / 2 - 30);
+        ctx.fillText("Game Over, You Won!", canvas_size.x / 2, canvas_size.y / 2 - 30);
         ctx.font = "35px Helvetica";
         ctx.fillStyle = "#000000";
-        ctx.fillText("press r to play again", CANVAS_SIZE.x / 2, CANVAS_SIZE.y / 2 + 30);
+        ctx.fillText("press r to play again", canvas_size.x / 2, canvas_size.y / 2 + 30);
     }
     else {
-        new Audio("sounds/game_lost.mp3").play();
+        if (game_state != GameStates.Over) {
+            new Audio("sounds/game_lost.mp3").play();
+        }
+        game_state = GameStates.Over;
         ctx.fillStyle = "#F27979";
         ctx.beginPath();
-        ctx.fillRect(0, 0, CANVAS_SIZE.x, CANVAS_SIZE.y);
+        ctx.fillRect(0, 0, canvas_size.x, canvas_size.y);
         ctx.textAlign = "center";
         ctx.font = "50px Helvetica";
         ctx.fillStyle = "#000000";
-        ctx.fillText("Game Over, You Lost", CANVAS_SIZE.x / 2, CANVAS_SIZE.y / 2 - 30);
+        ctx.fillText("Game Over, You Lost", canvas_size.x / 2, canvas_size.y / 2 - 30);
         ctx.font = "35px Helvetica";
         ctx.fillStyle = "#000000";
-        ctx.fillText("press r to play again", CANVAS_SIZE.x / 2, CANVAS_SIZE.y / 2 + 30);
+        ctx.fillText("press r to play again", canvas_size.x / 2, canvas_size.y / 2 + 30);
     }
 }
 // - Input - //
@@ -727,6 +737,7 @@ const CAMERA_CONTROLLER = {
 };
 const BUTTON_CONTROLLER = {
     "r": { pressed: false, func: () => { if (game_over) {
+            game_state = GameStates.Active;
             resetGame();
         } } },
 };
@@ -735,6 +746,7 @@ function mouseCapture() {
         document.addEventListener("mousemove", mouseRotateCamera, false);
         if (!game_over) {
             execute = true;
+            game_state = GameStates.Start;
             requestAnimationFrame((timestamp) => process(timestamp, true));
         }
     }
@@ -742,6 +754,7 @@ function mouseCapture() {
         document.removeEventListener("mousemove", mouseRotateCamera, false);
         if (!game_over) {
             execute = false;
+            game_state = GameStates.Paused;
             setTimeout(gamePauseScreen, 5); // Ensures that the pause screen is drawn on top of the last frame
         }
     }
@@ -768,90 +781,6 @@ function clipCameraPos() {
     active_camera.position.x = clamp(active_camera.position.x, -WORLD_BOUNDRY, WORLD_BOUNDRY);
     active_camera.position.z = clamp(active_camera.position.z, -WORLD_BOUNDRY, WORLD_BOUNDRY);
 }
-// - Init - //
-let execute = false; // When false, the engine will stop running
-// Canvas
-let canvas;
-let ctx;
-// TODO: Make the canvas size dynamic for any window size (even if it changes)
-const CANVAS_SIZE = new Vector2(1920, 1080); // Computer
-// const CANVAS_SIZE = new Vector2(1000, 580); // Laptop
-const DIST_SCALE = 0.1;
-function canvasInit() {
-    // Init canvas and context
-    let temp_canvas = document.getElementById("canvas");
-    if (!temp_canvas || !(temp_canvas instanceof HTMLCanvasElement)) {
-        throw new Error("Failed to get canvas.");
-    }
-    canvas = temp_canvas;
-    let temp_ctx = canvas.getContext("2d");
-    if (!temp_ctx || !(temp_ctx instanceof CanvasRenderingContext2D)) {
-        throw new Error("Failed to get 2D context.");
-    }
-    ctx = temp_ctx;
-    canvas.width = CANVAS_SIZE.x;
-    canvas.height = CANVAS_SIZE.y;
-}
-// World
-let world_objects = [];
-let active_camera;
-const WORLD_BOUNDRY = 40;
-const SKY_HEIGHT = 130;
-// Game
-let basket;
-// Creates and instantiates all objects
-function worldInit() {
-    // Init camera
-    active_camera = new Camera(new Vector3(0.1, 25, 0.1));
-    // World objects
-    let ground_colour = new RGB(46, 173, 3);
-    let ground_size = (WORLD_BOUNDRY + 15) * 0.5;
-    let wall_colour = new RGB(145, 97, 38);
-    let wall_height = 4;
-    let sky_colour = new RGB(61, 200, 255);
-    let sky_border_size = 10;
-    let sky_border_colour = new RGB(30, 30, 30);
-    let ground_1 = new Box(new Vector3(ground_size, -ground_size, ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
-    let ground_2 = new Box(new Vector3(ground_size, -ground_size, -ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
-    let ground_3 = new Box(new Vector3(-ground_size, -ground_size, ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
-    let ground_4 = new Box(new Vector3(-ground_size, -ground_size, -ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
-    let sky = new Plane(new Vector3(0, SKY_HEIGHT, 0), new Vector3(90, 0, 0), new Vector3(ground_size * 1.5, ground_size * 1.5, 0), [sky_colour]);
-    let sky_border = new Plane(new Vector3(0, SKY_HEIGHT + 5, 0), new Vector3(90, 0, 0), new Vector3(ground_size * 1.5 + sky_border_size, ground_size * 1.5 + sky_border_size, 0), [sky_border_colour]);
-    let wall_1 = new Plane(new Vector3(-ground_size * 2, wall_height, 0), new Vector3(0, 90, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
-    let wall_2 = new Plane(new Vector3(ground_size * 2, wall_height, 0), new Vector3(0, -90, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
-    let wall_3 = new Plane(new Vector3(0, wall_height, -ground_size * 2), new Vector3(0, 180, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
-    let wall_4 = new Plane(new Vector3(0, wall_height, ground_size * 2), new Vector3(0, 0, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
-    basket = new Basket(new Vector3(0, 20, 0), new Vector3(0, 0, 0), new Vector3(0.25, 0.4, 0.25), new RGB(255, 255, 20), new RGB(196, 196, 53));
-    world_objects.push(ground_1, ground_2, ground_3, ground_4, sky, sky_border, wall_1, wall_2, wall_3, wall_4, basket);
-}
-function ready() {
-    canvasInit();
-    inputInit();
-    worldInit();
-    gameStartScreen();
-}
-let last_animation_frame = 0;
-let delta = 0; // Represents the amount of time since the last animation frame
-function process(timestamp, unpaused) {
-    return __awaiter(this, void 0, void 0, function* () {
-        // Unpaused is true if the engine was just unpaused (stoped and then started again)
-        delta = unpaused ? 0 : (timestamp - last_animation_frame) * 0.1;
-        last_animation_frame = timestamp;
-        executeButtonInputs();
-        if (execute) {
-            render(active_camera, world_objects);
-            executeCameraInputs();
-            if (!active_camera.no_clip) {
-                clipCameraPos();
-            }
-            updateGame();
-            requestAnimationFrame((timestamp) => process(timestamp, false));
-        }
-        else {
-            requestAnimationFrame((timestamp) => process(timestamp, true));
-        }
-    });
-}
 // - Game Logic - //
 // Manages the logic for game functionality
 function updateGame() {
@@ -859,17 +788,28 @@ function updateGame() {
     basket.position.y = active_camera.position.y - 1;
     bananaManager();
 }
-// TODO: Doesn't work yet
 function resetGame() {
     active_camera.position = new Vector3(0.1, 25, 0.1);
     score = 0;
     level = 0;
     quota_timer = quota_time[level];
+    game_state = GameStates.Active;
+    game_won = false;
     game_over = false;
     execute = true;
     clearBananas();
     requestAnimationFrame((timestamp) => process(timestamp, true));
 }
+// For resizing the canvas
+var GameStates;
+(function (GameStates) {
+    GameStates[GameStates["Start"] = 0] = "Start";
+    GameStates[GameStates["Active"] = 1] = "Active";
+    GameStates[GameStates["Paused"] = 2] = "Paused";
+    GameStates[GameStates["Over"] = 3] = "Over";
+})(GameStates || (GameStates = {}));
+let game_state = GameStates.Start;
+let game_won = false;
 let game_over = false;
 let score = 0;
 let level = 0;
@@ -966,6 +906,8 @@ function clearBananas() {
         active_bananas.splice(active_bananas.indexOf(active_bananas[banana]), 1);
     }
 }
+// TODO: Make banana collisions more forgiving
+// Maybe also make it so that the basket remains at a contant distance away from the camera
 function bananaColliding(banana) {
     if (banana.position.y <= 7) {
         return true;
@@ -994,6 +936,7 @@ function levelUp() {
     level++;
     quota_timer = quota_time[level];
     if (level > 5) {
+        game_won = true;
         setTimeout(() => gameEndScreen(true), 5); // Ensures that the game end screen is drawn on top of the last frame
     }
     setTimeout(() => {
@@ -1002,3 +945,110 @@ function levelUp() {
         clearBananas();
     }, 500);
 }
+// - Init - //
+let execute = false; // When false, the engine will stop running
+// Canvas
+let canvas;
+let ctx;
+let canvas_size = new Vector2(window.innerWidth * 0.8, window.innerHeight * 0.8);
+window.onresize = resizeCanvas;
+function resizeCanvas() {
+    canvas_size = new Vector2(window.innerWidth * 0.8, window.innerHeight * 0.8);
+    canvas.width = canvas_size.x;
+    canvas.height = canvas_size.y;
+    active_camera.makePerspectiveProjectionMatrix();
+    render(active_camera, world_objects);
+    if (game_state == GameStates.Start) {
+        gameStartScreen();
+    }
+    else if (game_state == GameStates.Paused) {
+        gamePauseScreen();
+    }
+    else if (game_state == GameStates.Over) {
+        gameEndScreen(game_won);
+    }
+}
+function canvasInit() {
+    // Init canvas and context
+    let temp_canvas = document.getElementById("canvas");
+    if (!temp_canvas || !(temp_canvas instanceof HTMLCanvasElement)) {
+        throw new Error("Failed to get canvas.");
+    }
+    canvas = temp_canvas;
+    let temp_ctx = canvas.getContext("2d");
+    if (!temp_ctx || !(temp_ctx instanceof CanvasRenderingContext2D)) {
+        throw new Error("Failed to get 2D context.");
+    }
+    ctx = temp_ctx;
+    resizeCanvas();
+}
+// World
+let world_objects = [];
+let active_camera;
+const WORLD_BOUNDRY = 40;
+const SKY_HEIGHT = 130;
+// Game
+let basket;
+// Creates and instantiates all objects
+function worldInit() {
+    // Init camera
+    active_camera = new Camera(new Vector3(0.1, 25, 0.1));
+    // World objects
+    let ground_colour = new RGB(46, 173, 3);
+    let ground_size = (WORLD_BOUNDRY + 15) * 0.5;
+    let wall_colour = new RGB(145, 97, 38);
+    let wall_height = 4;
+    let sky_colour = new RGB(61, 200, 255);
+    let sky_border_size = 10;
+    let sky_border_colour = new RGB(30, 30, 30);
+    let ground_1 = new Box(new Vector3(ground_size, -ground_size, ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
+    let ground_2 = new Box(new Vector3(ground_size, -ground_size, -ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
+    let ground_3 = new Box(new Vector3(-ground_size, -ground_size, ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
+    let ground_4 = new Box(new Vector3(-ground_size, -ground_size, -ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
+    let sky = new Plane(new Vector3(0, SKY_HEIGHT, 0), new Vector3(90, 0, 0), new Vector3(ground_size * 1.5, ground_size * 1.5, 0), [sky_colour]);
+    let sky_border = new Plane(new Vector3(0, SKY_HEIGHT + 5, 0), new Vector3(90, 0, 0), new Vector3(ground_size * 1.5 + sky_border_size, ground_size * 1.5 + sky_border_size, 0), [sky_border_colour]);
+    let wall_1 = new Plane(new Vector3(-ground_size * 2, wall_height, 0), new Vector3(0, 90, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
+    let wall_2 = new Plane(new Vector3(ground_size * 2, wall_height, 0), new Vector3(0, -90, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
+    let wall_3 = new Plane(new Vector3(0, wall_height, -ground_size * 2), new Vector3(0, 180, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
+    let wall_4 = new Plane(new Vector3(0, wall_height, ground_size * 2), new Vector3(0, 0, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
+    basket = new Basket(new Vector3(0, 20, 0), new Vector3(0, 0, 0), new Vector3(0.25, 0.4, 0.25), new RGB(255, 255, 20), new RGB(196, 196, 53));
+    world_objects.push(ground_1, ground_2, ground_3, ground_4, sky, sky_border, wall_1, wall_2, wall_3, wall_4, basket);
+}
+function ready() {
+    worldInit();
+    canvasInit();
+    inputInit();
+    gameStartScreen();
+}
+let last_animation_frame = 0;
+let delta = 0; // Represents the amount of time since the last animation frame
+function process(timestamp, unpaused) {
+    return __awaiter(this, void 0, void 0, function* () {
+        // Unpaused is true if the engine was just unpaused (stoped and then started again)
+        delta = unpaused ? 0 : (timestamp - last_animation_frame) * 0.1;
+        last_animation_frame = timestamp;
+        executeButtonInputs();
+        if (execute) {
+            render(active_camera, world_objects);
+            executeCameraInputs();
+            if (!active_camera.no_clip) {
+                clipCameraPos();
+            }
+            updateGame();
+            requestAnimationFrame((timestamp) => process(timestamp, false));
+        }
+        else {
+            requestAnimationFrame((timestamp) => process(timestamp, true));
+        }
+    });
+}
+// Classes
+// - Math Classes - //
+// - Object Classes - //
+// - Shapes - //
+// Functions
+// - Tool Functions - //
+// - Rendering - //
+// - Input - //
+// - Game Logic - //
+// - Init - //

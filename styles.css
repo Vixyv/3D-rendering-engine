@@ -13,10 +13,13 @@ body {
     }
 }
 
-canvas {
-    margin-left: auto;
-    margin-right: auto;
-    display: block;
+html, body {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 
+canvas {
     outline: 2px solid black;
 }
