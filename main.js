@@ -174,8 +174,6 @@ class Camera {
             [forward.x, forward.y, forward.z]];
         this.position = this.position.minus(direction.matrixMult(translation));
     }
-    // Moves the camera relative to the world axes
-    translate(vector) { this.position = this.position.add(vector); }
 }
 _Camera_near = new WeakMap(), _Camera_far = new WeakMap(), _Camera_fov = new WeakMap();
 class RGB {
@@ -228,13 +226,6 @@ class ObjectNode {
             world_pos_triangles.push(new Triangle(vert_1, vert_2, vert_3, colour));
         }
         return world_pos_triangles;
-    }
-    // Physics Functions //
-    translate(vector) {
-        this.position = this.position.add(vector);
-    }
-    rotate(vector) {
-        this.rotation = this.rotation.add(vector);
     }
 }
 _ObjectNode_instances = new WeakSet(), _ObjectNode_modelToWorld = function _ObjectNode_modelToWorld(vector) {
@@ -292,13 +283,6 @@ _Plane_instances = new WeakSet(), _Plane_createMesh = function _Plane_createMesh
     let tri_2 = new Triangle(new Vector3(1, -1, 0), new Vector3(-1, 1, 0), new Vector3(-1, -1, 0));
     this.mesh.push(tri_1, tri_2);
 };
-class CustomMesh extends ObjectNode {
-    constructor(position, rotation, scale, mesh, texture) {
-        super(position, rotation, scale, texture);
-        this.mesh = mesh;
-        super.applyTexture();
-    }
-}
 class Banana extends ObjectNode {
     constructor(position, rotation, scale, banana_colour) {
         super(position, rotation, scale, [new RGB(0, 0, 0)]);
@@ -445,6 +429,14 @@ _Basket_instances = new WeakSet(), _Basket_createTexture = function _Basket_crea
     let b_8 = new Triangle(new Vector3(INNER_SQRT2, -0.5, -INNER_SQRT2), new Vector3(1.5, -0.5, 0), new Vector3(0, -0.5, 0));
     this.mesh.push(t_11, t_12, t_21, t_22, t_31, t_32, t_41, t_42, t_51, t_52, t_61, t_62, t_71, t_72, t_81, t_82, o_11, o_12, o_21, o_22, o_31, o_32, o_41, o_42, o_51, o_52, o_61, o_62, o_71, o_72, o_81, o_82, i_11, i_12, i_21, i_22, i_31, i_32, i_41, i_42, i_51, i_52, i_61, i_62, i_71, i_72, i_81, i_82, b_1, b_2, b_3, b_4, b_5, b_6, b_7, b_8);
 };
+// Only used for development purposes
+// class CustomMesh extends ObjectNode {
+//     constructor(position: Vector3, rotation: Vector3, scale: Vector3, mesh: Triangle[], texture: RGB[]) {
+//         super(position, rotation, scale, texture);
+//         this.mesh = mesh;
+//         super.applyTexture();
+//     }
+// }
 // - Tool Functions - //
 // Clamps x to be from min to max (inclusive)
 function clamp(x, min, max) {
@@ -473,8 +465,6 @@ function matrixMult(mat_1, mat_2) {
 function rand_int(a, b) {
     return Math.floor(Math.random() * b) + a;
 }
-// Stops the program from running for n milliseconds (https://stackoverflow.com/questions/951021/what-is-the-javascript-version-of-sleep)
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // - Rendering - //
 // Notes //
 // Directionality: y-up, right-handed (https://pbs.twimg.com/media/EmVSW5AW8AAoDD9.jpg:large)
@@ -502,7 +492,7 @@ function makeMVPMatrix(camera) {
     // Inverted because we want to rotate the vector in the opposite direction of the camera
     let pitch_rad = -camera.view_angle.y * (Math.PI / 180);
     let yaw_rad = -camera.view_angle.x * (Math.PI / 180);
-    // The point the camera is looking at
+    // The point the camera is looking at (slightly modified `facing()`)
     let target = new Vector3(Math.sin(yaw_rad) * Math.cos(pitch_rad), Math.sin(pitch_rad), -Math.cos(yaw_rad) * Math.cos(pitch_rad)).add(camera.position);
     let z_axis = camera.position.minus(target); // The "forward" vector
     let x_axis = new Vector3(0, -1, 0).cross(z_axis).normalize(); // The "right" vector
@@ -537,7 +527,6 @@ function worldToScreen(camera, camera_target, mvp_matrix, vector) {
         }
         vec_4.x = vec_4.x / (vec_4.w);
         vec_4.y = vec_4.y / (vec_4.w);
-        // vec_4.z = vec_4.z/(vec_4.w);
     }
     // Map to canvas
     vec_4.x = canvas_size.x * 0.5 * (vec_4.x + 1);
@@ -618,7 +607,7 @@ function render(camera, objects) {
     }
     drawUI();
 }
-// Screens for the start and end of the game
+// Screens for the pause menu and start and end of the game
 function gameStartScreen() {
     ctx.fillStyle = "#F2D16D";
     ctx.beginPath();
@@ -631,7 +620,6 @@ function gameStartScreen() {
     ctx.fillStyle = "#000000";
     ctx.fillText("click on the screen to start", canvas_size.x / 2, canvas_size.y / 2 + 30);
 }
-// TODO: Just use a semi transparent background + some text
 function gamePauseScreen() {
     ctx.globalAlpha = 0.5;
     ctx.fillStyle = "rgb(131, 131, 131)";
@@ -683,10 +671,8 @@ function gameEndScreen(win) {
     }
 }
 // - Input - //
-const BASE_ROTATE_SPEED = 1;
-let rotate_speed = BASE_ROTATE_SPEED;
-const BASE_MOVE_SPEED = 0.25;
-let move_speed = BASE_MOVE_SPEED;
+const ROTATE_SPEED = 1.5;
+const MOVE_SPEED = 0.4;
 const MOUSE_X_SENS = 0.1;
 const MOUSE_Y_SENS = 0.11;
 function inputInit() {
@@ -723,17 +709,17 @@ function inputInit() {
 // Each key's function is then executed if the key is pressed in executeMoves()
 const CAMERA_CONTROLLER = {
     // Orientation
-    "ArrowUp": { pressed: false, func: (camera) => camera.rotate(new Vector2(0, rotate_speed)) }, // Look up
-    "ArrowDown": { pressed: false, func: (camera) => camera.rotate(new Vector2(0, -rotate_speed)) }, // Look down
-    "ArrowLeft": { pressed: false, func: (camera) => camera.rotate(new Vector2(-rotate_speed, 0)) }, // Look left
-    "ArrowRight": { pressed: false, func: (camera) => camera.rotate(new Vector2(rotate_speed, 0)) }, // Look right
+    "ArrowUp": { pressed: false, func: (camera) => camera.rotate(new Vector2(0, ROTATE_SPEED * delta)) }, // Look up
+    "ArrowDown": { pressed: false, func: (camera) => camera.rotate(new Vector2(0, -ROTATE_SPEED * delta)) }, // Look down
+    "ArrowLeft": { pressed: false, func: (camera) => camera.rotate(new Vector2(-ROTATE_SPEED * delta, 0)) }, // Look left
+    "ArrowRight": { pressed: false, func: (camera) => camera.rotate(new Vector2(ROTATE_SPEED * delta, 0)) }, // Look right
     // Position
-    "w": { pressed: false, func: (camera) => camera.move(new Vector3(0, 0, move_speed)) }, // Forward
-    "a": { pressed: false, func: (camera) => camera.move(new Vector3(-move_speed, 0, 0)) }, // Left
-    "s": { pressed: false, func: (camera) => camera.move(new Vector3(0, 0, -move_speed)) }, // Back
-    "d": { pressed: false, func: (camera) => camera.move(new Vector3(move_speed, 0, 0)) }, // Right
-    "q": { pressed: false, func: (camera) => camera.move(new Vector3(0, -move_speed, 0)) }, // Down
-    "e": { pressed: false, func: (camera) => camera.move(new Vector3(0, move_speed, 0)) }, // Up
+    "w": { pressed: false, func: (camera) => camera.move(new Vector3(0, 0, MOVE_SPEED * delta)) }, // Forward
+    "a": { pressed: false, func: (camera) => camera.move(new Vector3(-MOVE_SPEED * delta, 0, 0)) }, // Left
+    "s": { pressed: false, func: (camera) => camera.move(new Vector3(0, 0, -MOVE_SPEED * delta)) }, // Back
+    "d": { pressed: false, func: (camera) => camera.move(new Vector3(MOVE_SPEED * delta, 0, 0)) }, // Right
+    "q": { pressed: false, func: (camera) => camera.move(new Vector3(0, -MOVE_SPEED * delta, 0)) }, // Down
+    "e": { pressed: false, func: (camera) => camera.move(new Vector3(0, MOVE_SPEED * delta, 0)) }, // Up
 };
 const BUTTON_CONTROLLER = {
     "r": { pressed: false, func: () => { if (game_over) {
@@ -774,9 +760,6 @@ function executeButtonInputs() {
         BUTTON_CONTROLLER[key].pressed && BUTTON_CONTROLLER[key].func();
     });
 }
-function toggleNoClip() {
-    active_camera.no_clip = active_camera.no_clip ? false : true;
-}
 function clipCameraPos() {
     active_camera.position.x = clamp(active_camera.position.x, -WORLD_BOUNDRY, WORLD_BOUNDRY);
     active_camera.position.z = clamp(active_camera.position.z, -WORLD_BOUNDRY, WORLD_BOUNDRY);
@@ -784,7 +767,9 @@ function clipCameraPos() {
 // - Game Logic - //
 // Manages the logic for game functionality
 function updateGame() {
-    basket.position = active_camera.position.add(active_camera.facing().scale(-2));
+    let const_dist = active_camera.facing();
+    const_dist.y = 0;
+    basket.position = active_camera.position.add(const_dist.normalize().scale(-1.5));
     basket.position.y = active_camera.position.y - 1;
     bananaManager();
 }
@@ -800,7 +785,7 @@ function resetGame() {
     clearBananas();
     requestAnimationFrame((timestamp) => process(timestamp, true));
 }
-// For resizing the canvas
+// Used for resizing the canvas
 var GameStates;
 (function (GameStates) {
     GameStates[GameStates["Start"] = 0] = "Start";
@@ -819,15 +804,15 @@ let quota = {
     2: 8,
     3: 10,
     4: 15,
-    5: 20,
+    5: 25,
 };
 // In milliseconds
 let quota_time = {
     0: 2000,
     1: 1800,
     2: 1500,
-    3: 1400,
-    4: 1400,
+    3: 1300,
+    4: 1000,
     5: 1500,
 };
 let quota_timer = quota_time[level];
@@ -882,6 +867,7 @@ function bananaManager() {
         if (bananaColliding(active_bananas[banana])) {
             world_objects.splice(world_objects.indexOf(active_bananas[banana]), 1);
             active_bananas.splice(active_bananas.indexOf(active_bananas[banana]), 1);
+            banana--;
         }
         else {
             active_bananas[banana].position.y -= delta * (0.2 * banana_speed[level]);
@@ -906,19 +892,17 @@ function clearBananas() {
         active_bananas.splice(active_bananas.indexOf(active_bananas[banana]), 1);
     }
 }
-// TODO: Make banana collisions more forgiving
 // Maybe also make it so that the basket remains at a contant distance away from the camera
 function bananaColliding(banana) {
     if (banana.position.y <= 7) {
         return true;
     }
-    // Bounding boxes of the banana and basket
-    // Very forgiving
-    let min_x = basket.position.x - basket.scale.x * 1.6 - banana.scale.x * 10;
-    let max_x = basket.position.x + basket.scale.x * 1.6 + banana.scale.x * 10;
-    let min_z = basket.position.z - basket.scale.z * 1.6 - banana.scale.z * 10;
-    let max_z = basket.position.z + basket.scale.z * 1.6 + banana.scale.z * 10;
-    let max_y = basket.position.y + basket.scale.y + 1;
+    // Bounding boxes of the banana and basket (quite forgiving)
+    let min_x = Math.min(basket.position.x - basket.scale.x * 4, active_camera.position.x - 2) - banana.scale.x * 10;
+    let max_x = Math.min(basket.position.x + basket.scale.x * 4, active_camera.position.x + 2) + banana.scale.x * 10;
+    let min_z = Math.min(basket.position.z - basket.scale.z * 4, active_camera.position.z - 2) - banana.scale.z * 10;
+    let max_z = Math.min(basket.position.z + basket.scale.z * 4, active_camera.position.z + 2) + banana.scale.z * 10;
+    let max_y = active_camera.position.y - 1;
     if (banana.position.y < max_y && banana.position.x > min_x && banana.position.x < max_x && banana.position.z > min_z && banana.position.z < max_z) {
         bananaCollected();
         return true;
@@ -947,6 +931,38 @@ function levelUp() {
 }
 // - Init - //
 let execute = false; // When false, the engine will stop running
+// World
+let world_objects = [];
+let active_camera;
+const WORLD_BOUNDRY = 40;
+const SKY_HEIGHT = 130;
+// Game
+let basket;
+// Creates and instantiates all objects
+function worldInit() {
+    // Init camera
+    active_camera = new Camera(new Vector3(0.1, 25, 0.1));
+    // World objects
+    let ground_colour = new RGB(46, 173, 3);
+    let ground_size = (WORLD_BOUNDRY + 15) * 0.5;
+    let wall_colour = new RGB(145, 97, 38);
+    let wall_height = 4;
+    let sky_colour = new RGB(61, 200, 255);
+    let sky_border_size = 10;
+    let sky_border_colour = new RGB(30, 30, 30);
+    let ground_1 = new Box(new Vector3(ground_size, -ground_size, ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
+    let ground_2 = new Box(new Vector3(ground_size, -ground_size, -ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
+    let ground_3 = new Box(new Vector3(-ground_size, -ground_size, ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
+    let ground_4 = new Box(new Vector3(-ground_size, -ground_size, -ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
+    let sky = new Plane(new Vector3(0, SKY_HEIGHT, 0), new Vector3(90, 0, 0), new Vector3(ground_size * 1.5, ground_size * 1.5, 0), [sky_colour]);
+    let sky_border = new Plane(new Vector3(0, SKY_HEIGHT + 5, 0), new Vector3(90, 0, 0), new Vector3(ground_size * 1.5 + sky_border_size, ground_size * 1.5 + sky_border_size, 0), [sky_border_colour]);
+    let wall_1 = new Plane(new Vector3(-ground_size * 2, wall_height, 0), new Vector3(0, 90, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
+    let wall_2 = new Plane(new Vector3(ground_size * 2, wall_height, 0), new Vector3(0, -90, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
+    let wall_3 = new Plane(new Vector3(0, wall_height, -ground_size * 2), new Vector3(0, 180, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
+    let wall_4 = new Plane(new Vector3(0, wall_height, ground_size * 2), new Vector3(0, 0, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
+    basket = new Basket(new Vector3(0, 20, 0), new Vector3(0, 0, 0), new Vector3(0.25, 0.4, 0.25), new RGB(255, 255, 20), new RGB(196, 196, 53));
+    world_objects.push(ground_1, ground_2, ground_3, ground_4, sky, sky_border, wall_1, wall_2, wall_3, wall_4, basket);
+}
 // Canvas
 let canvas;
 let ctx;
@@ -982,43 +998,10 @@ function canvasInit() {
     ctx = temp_ctx;
     resizeCanvas();
 }
-// World
-let world_objects = [];
-let active_camera;
-const WORLD_BOUNDRY = 40;
-const SKY_HEIGHT = 130;
-// Game
-let basket;
-// Creates and instantiates all objects
-function worldInit() {
-    // Init camera
-    active_camera = new Camera(new Vector3(0.1, 25, 0.1));
-    // World objects
-    let ground_colour = new RGB(46, 173, 3);
-    let ground_size = (WORLD_BOUNDRY + 15) * 0.5;
-    let wall_colour = new RGB(145, 97, 38);
-    let wall_height = 4;
-    let sky_colour = new RGB(61, 200, 255);
-    let sky_border_size = 10;
-    let sky_border_colour = new RGB(30, 30, 30);
-    let ground_1 = new Box(new Vector3(ground_size, -ground_size, ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
-    let ground_2 = new Box(new Vector3(ground_size, -ground_size, -ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
-    let ground_3 = new Box(new Vector3(-ground_size, -ground_size, ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
-    let ground_4 = new Box(new Vector3(-ground_size, -ground_size, -ground_size), new Vector3(0, 0, 0), new Vector3(ground_size, ground_size, ground_size), [ground_colour]);
-    let sky = new Plane(new Vector3(0, SKY_HEIGHT, 0), new Vector3(90, 0, 0), new Vector3(ground_size * 1.5, ground_size * 1.5, 0), [sky_colour]);
-    let sky_border = new Plane(new Vector3(0, SKY_HEIGHT + 5, 0), new Vector3(90, 0, 0), new Vector3(ground_size * 1.5 + sky_border_size, ground_size * 1.5 + sky_border_size, 0), [sky_border_colour]);
-    let wall_1 = new Plane(new Vector3(-ground_size * 2, wall_height, 0), new Vector3(0, 90, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
-    let wall_2 = new Plane(new Vector3(ground_size * 2, wall_height, 0), new Vector3(0, -90, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
-    let wall_3 = new Plane(new Vector3(0, wall_height, -ground_size * 2), new Vector3(0, 180, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
-    let wall_4 = new Plane(new Vector3(0, wall_height, ground_size * 2), new Vector3(0, 0, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
-    basket = new Basket(new Vector3(0, 20, 0), new Vector3(0, 0, 0), new Vector3(0.25, 0.4, 0.25), new RGB(255, 255, 20), new RGB(196, 196, 53));
-    world_objects.push(ground_1, ground_2, ground_3, ground_4, sky, sky_border, wall_1, wall_2, wall_3, wall_4, basket);
-}
 function ready() {
     worldInit();
     canvasInit();
     inputInit();
-    gameStartScreen();
 }
 let last_animation_frame = 0;
 let delta = 0; // Represents the amount of time since the last animation frame

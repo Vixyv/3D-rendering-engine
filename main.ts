@@ -199,9 +199,6 @@ class Camera {
         
         this.position = this.position.minus(direction.matrixMult(translation));
     }
-
-    // Moves the camera relative to the world axes
-    translate(vector: Vector3) { this.position = this.position.add(vector) }
 }
 
 class RGB {
@@ -296,15 +293,6 @@ class ObjectNode {
         // 3. Translate
         return vector.add(this.position);
     }
-
-    // Physics Functions //
-    translate(vector: Vector3) {
-        this.position = this.position.add(vector);
-    }
-
-    rotate(vector: Vector3) {
-        this.rotation = this.rotation.add(vector);
-    }
 }
 
 // - Shapes - //
@@ -356,14 +344,6 @@ class Plane extends ObjectNode {
         let tri_2 = new Triangle(new Vector3(1, -1, 0), new Vector3(-1, 1, 0), new Vector3(-1, -1, 0));
     
         this.mesh.push(tri_1, tri_2);
-    }
-}
-
-class CustomMesh extends ObjectNode {
-    constructor(position: Vector3, rotation: Vector3, scale: Vector3, mesh: Triangle[], texture: RGB[]) {
-        super(position, rotation, scale, texture);
-        this.mesh = mesh;
-        super.applyTexture();
     }
 }
 
@@ -564,6 +544,16 @@ class Basket extends ObjectNode {
     }
 }
 
+// Only used for development purposes
+// class CustomMesh extends ObjectNode {
+//     constructor(position: Vector3, rotation: Vector3, scale: Vector3, mesh: Triangle[], texture: RGB[]) {
+//         super(position, rotation, scale, texture);
+//         this.mesh = mesh;
+//         super.applyTexture();
+//     }
+// }
+
+
 // - Tool Functions - //
 
 // Clamps x to be from min to max (inclusive)
@@ -599,10 +589,7 @@ function matrixMult(mat_1: number[][], mat_2: number[][]) : number[][] {
 // Produces a random int from a to b
 function rand_int(a: number, b: number) : number {
     return Math.floor( Math.random()*b ) + a
-} 
-
-// Stops the program from running for n milliseconds (https://stackoverflow.com/questions/951021/what-is-the-javascript-version-of-sleep)
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+}
 
 // - Rendering - //
 
@@ -639,7 +626,7 @@ function makeMVPMatrix(camera: Camera) : number[][] {
     let pitch_rad = -camera.view_angle.y*(Math.PI/180);
     let yaw_rad = -camera.view_angle.x*(Math.PI/180);
 
-    // The point the camera is looking at
+    // The point the camera is looking at (slightly modified `facing()`)
     let target = new Vector3(Math.sin(yaw_rad)*Math.cos(pitch_rad),
                              Math.sin(pitch_rad),
                              -Math.cos(yaw_rad)*Math.cos(pitch_rad)).add(camera.position);
@@ -689,7 +676,6 @@ function worldToScreen(camera: Camera, camera_target: Vector3, mvp_matrix: numbe
 
         vec_4.x = vec_4.x/(vec_4.w);
         vec_4.y = vec_4.y/(vec_4.w);
-        // vec_4.z = vec_4.z/(vec_4.w);
     }
 
     // Map to canvas
@@ -796,7 +782,7 @@ function render(camera: Camera, objects: ObjectNode[]) {
     drawUI();
 }
 
-// Screens for the start and end of the game
+// Screens for the pause menu and start and end of the game
 function gameStartScreen() {
     ctx.fillStyle = "#F2D16D";
 
@@ -813,7 +799,6 @@ function gameStartScreen() {
     ctx.fillText("click on the screen to start", canvas_size.x/2, canvas_size.y/2 + 30);
 }
 
-// TODO: Just use a semi transparent background + some text
 function gamePauseScreen() {
     ctx.globalAlpha = 0.5;
     ctx.fillStyle = "rgb(131, 131, 131)";
@@ -871,10 +856,8 @@ function gameEndScreen(win: boolean) {
 
 // - Input - //
 
-const BASE_ROTATE_SPEED = 1;
-let rotate_speed = BASE_ROTATE_SPEED;
-const BASE_MOVE_SPEED = 0.25;
-let move_speed = BASE_MOVE_SPEED;
+const ROTATE_SPEED = 1.5;
+const MOVE_SPEED = 0.4;
 
 const MOUSE_X_SENS = 0.1;
 const MOUSE_Y_SENS = 0.11;
@@ -918,17 +901,17 @@ function inputInit() {
 // Each key's function is then executed if the key is pressed in executeMoves()
 const CAMERA_CONTROLLER: {[key: string]: {pressed: boolean; func: (camera: Camera) => void;}} = {
     // Orientation
-    "ArrowUp": {pressed: false, func: (camera: Camera) => camera.rotate(new Vector2(0, rotate_speed))},    // Look up
-    "ArrowDown": {pressed: false, func: (camera: Camera) => camera.rotate(new Vector2(0, -rotate_speed))}, // Look down
-    "ArrowLeft": {pressed: false, func: (camera: Camera) => camera.rotate(new Vector2(-rotate_speed, 0))}, // Look left
-    "ArrowRight": {pressed: false, func: (camera: Camera) => camera.rotate(new Vector2(rotate_speed, 0))}, // Look right
+    "ArrowUp": {pressed: false, func: (camera: Camera) => camera.rotate(new Vector2(0, ROTATE_SPEED*delta))},    // Look up
+    "ArrowDown": {pressed: false, func: (camera: Camera) => camera.rotate(new Vector2(0, -ROTATE_SPEED*delta))}, // Look down
+    "ArrowLeft": {pressed: false, func: (camera: Camera) => camera.rotate(new Vector2(-ROTATE_SPEED*delta, 0))}, // Look left
+    "ArrowRight": {pressed: false, func: (camera: Camera) => camera.rotate(new Vector2(ROTATE_SPEED*delta, 0))}, // Look right
     // Position
-    "w": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(0, 0, move_speed))},  // Forward
-    "a": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(-move_speed, 0, 0))}, // Left
-    "s": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(0, 0, -move_speed))}, // Back
-    "d": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(move_speed, 0, 0))},  // Right
-    "q": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(0, -move_speed, 0))}, // Down
-    "e": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(0, move_speed, 0))},  // Up
+    "w": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(0, 0, MOVE_SPEED*delta))},  // Forward
+    "a": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(-MOVE_SPEED*delta, 0, 0))}, // Left
+    "s": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(0, 0, -MOVE_SPEED*delta))}, // Back
+    "d": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(MOVE_SPEED*delta, 0, 0))},  // Right
+    "q": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(0, -MOVE_SPEED*delta, 0))}, // Down
+    "e": {pressed: false, func: (camera: Camera) => camera.move(new Vector3(0, MOVE_SPEED*delta, 0))},  // Up
 }
 
 const BUTTON_CONTROLLER: {[key: string]: {pressed: boolean; func: () => void;}} = {
@@ -971,10 +954,6 @@ function executeButtonInputs() {
     })
 }
 
-function toggleNoClip() {
-    active_camera.no_clip = active_camera.no_clip ? false : true;
-}
-
 function clipCameraPos() {
     active_camera.position.x = clamp(active_camera.position.x, -WORLD_BOUNDRY, WORLD_BOUNDRY);
     active_camera.position.z = clamp(active_camera.position.z, -WORLD_BOUNDRY, WORLD_BOUNDRY);
@@ -984,7 +963,9 @@ function clipCameraPos() {
 
 // Manages the logic for game functionality
 function updateGame() {
-    basket.position = active_camera.position.add(active_camera.facing().scale(-2));
+    let const_dist = active_camera.facing();
+    const_dist.y = 0;
+    basket.position = active_camera.position.add(const_dist.normalize().scale(-1.5));
     basket.position.y = active_camera.position.y - 1;
 
     bananaManager();
@@ -1006,7 +987,7 @@ function resetGame() {
     requestAnimationFrame((timestamp: DOMHighResTimeStamp) => process(timestamp, true));
 }
 
-// For resizing the canvas
+// Used for resizing the canvas
 enum GameStates {
     Start,
     Active,
@@ -1027,7 +1008,7 @@ let quota: { [level: number] : number } = {
     2: 8,
     3: 10,
     4: 15,
-    5: 20,
+    5: 25,
 };
 
 // In milliseconds
@@ -1035,8 +1016,8 @@ let quota_time: { [level: number] : number } = {
     0: 2000,
     1: 1800,
     2: 1500,
-    3: 1400,
-    4: 1400,
+    3: 1300,
+    4: 1000,
     5: 1500,
 };
 let quota_timer = quota_time[level];
@@ -1099,6 +1080,7 @@ function bananaManager() {
         if (bananaColliding(active_bananas[banana])) {
             world_objects.splice(world_objects.indexOf(active_bananas[banana]), 1);
             active_bananas.splice(active_bananas.indexOf(active_bananas[banana]), 1);
+            banana--;
         } else {
             active_bananas[banana].position.y -= delta*(0.2*banana_speed[level]);
         }
@@ -1129,20 +1111,18 @@ function clearBananas() {
     }
 }
 
-// TODO: Make banana collisions more forgiving
 // Maybe also make it so that the basket remains at a contant distance away from the camera
 function bananaColliding(banana: Banana) : boolean {
     if (banana.position.y <= 7) {
         return true
     }
 
-    // Bounding boxes of the banana and basket
-    // Very forgiving
-    let min_x = basket.position.x - basket.scale.x*1.6 - banana.scale.x*10;
-    let max_x = basket.position.x + basket.scale.x*1.6 + banana.scale.x*10;
-    let min_z = basket.position.z - basket.scale.z*1.6 - banana.scale.z*10;
-    let max_z = basket.position.z + basket.scale.z*1.6 + banana.scale.z*10;
-    let max_y = basket.position.y + basket.scale.y + 1;
+    // Bounding boxes of the banana and basket (quite forgiving)
+    let min_x = Math.min(basket.position.x-basket.scale.x*4, active_camera.position.x-2) - banana.scale.x*10;
+    let max_x = Math.min(basket.position.x+basket.scale.x*4, active_camera.position.x+2) + banana.scale.x*10;
+    let min_z = Math.min(basket.position.z-basket.scale.z*4, active_camera.position.z-2) - banana.scale.z*10;
+    let max_z = Math.min(basket.position.z+basket.scale.z*4, active_camera.position.z+2) + banana.scale.z*10;
+    let max_y = active_camera.position.y-1;
 
     if (banana.position.y < max_y && banana.position.x > min_x && banana.position.x < max_x && banana.position.z > min_z && banana.position.z < max_z) {
         bananaCollected();
@@ -1176,46 +1156,9 @@ function levelUp() {
     }, 500)
 }
 
-
 // - Init - //
 
 let execute = false; // When false, the engine will stop running
-
-// Canvas
-let canvas: HTMLCanvasElement;
-let ctx: CanvasRenderingContext2D;
-
-let canvas_size = new Vector2(window.innerWidth * 0.8, window.innerHeight * 0.8); 
-window.onresize = resizeCanvas;
-
-function resizeCanvas() {
-    canvas_size = new Vector2(window.innerWidth * 0.8, window.innerHeight * 0.8);
-    canvas.width = canvas_size.x;
-    canvas.height = canvas_size.y;
-    active_camera.makePerspectiveProjectionMatrix();
-    
-    render(active_camera, world_objects);
-    if (game_state == GameStates.Start) { gameStartScreen(); }
-    else if (game_state == GameStates.Paused) { gamePauseScreen(); }
-    else if (game_state == GameStates.Over) { gameEndScreen(game_won); }
-}
-
-function canvasInit() {
-    // Init canvas and context
-    let temp_canvas = document.getElementById("canvas");
-    if (!temp_canvas || !(temp_canvas instanceof HTMLCanvasElement)) {
-        throw new Error("Failed to get canvas.");
-    }
-    canvas = temp_canvas;
-
-    let temp_ctx = canvas.getContext("2d");
-    if (!temp_ctx || !(temp_ctx instanceof CanvasRenderingContext2D)) {
-        throw new Error("Failed to get 2D context.");
-    }
-    ctx = temp_ctx;
-
-    resizeCanvas();
-}
 
 // World
 let world_objects: ObjectNode[] = [];
@@ -1266,12 +1209,46 @@ function worldInit() {
     );
 }
 
+// Canvas
+let canvas: HTMLCanvasElement;
+let ctx: CanvasRenderingContext2D;
+
+let canvas_size = new Vector2(window.innerWidth * 0.8, window.innerHeight * 0.8); 
+window.onresize = resizeCanvas;
+
+function resizeCanvas() {
+    canvas_size = new Vector2(window.innerWidth * 0.8, window.innerHeight * 0.8);
+    canvas.width = canvas_size.x;
+    canvas.height = canvas_size.y;
+    active_camera.makePerspectiveProjectionMatrix();
+    
+    render(active_camera, world_objects);
+    if (game_state == GameStates.Start) { gameStartScreen(); }
+    else if (game_state == GameStates.Paused) { gamePauseScreen(); }
+    else if (game_state == GameStates.Over) { gameEndScreen(game_won); }
+}
+
+function canvasInit() {
+    // Init canvas and context
+    let temp_canvas = document.getElementById("canvas");
+    if (!temp_canvas || !(temp_canvas instanceof HTMLCanvasElement)) {
+        throw new Error("Failed to get canvas.");
+    }
+    canvas = temp_canvas;
+
+    let temp_ctx = canvas.getContext("2d");
+    if (!temp_ctx || !(temp_ctx instanceof CanvasRenderingContext2D)) {
+        throw new Error("Failed to get 2D context.");
+    }
+    ctx = temp_ctx;
+
+    resizeCanvas();
+}
+
 function ready() {
     worldInit();
     canvasInit();
     inputInit();
-
-    gameStartScreen();
 }
 
 let last_animation_frame = 0;
