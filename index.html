@@ -7,23 +7,27 @@
     <link rel="stylesheet" href="./styles.css">
   </head>
   <body onload="ready();">
-    <div id="info_page">
-      <h1 style="text-align: center;">Bonzo Bananas</h1>
-      <p style="text-align: center; line-height: 0px; font-size: 20px;">How to Play</p>
-      <h1>Movement</h1>
-        <p>Use <b>WASD</b> to walk around.</p>
-        <p>Use your mouse, trackpad, or the arrow keys to look around.</p>
-        <p>Press <b>ESC</b> to pause the game.</p>
-      <h1>Winning</h1>
-        <p>To win the game, you must beat every level, which there are six.</p>
-        <p>Every level, there will be bananas falling from the sky and a quota you must meet.</p>
-        <p>To beat the level, you must must meet your banana quota before the timer runs out.</p>
-        <p>If you meet the quota, you move onto the next level. If you do not, you lose.</p>
-        <br>
-      <p style="text-align: center;">Have fun! Click this button to play.</p>
-      <button type="button" onclick="document.getElementById('info_page').style.display='none'; document.getElementById('canvas').style.display='block'; ready();">Begin</button>
+    <div id="info_page_center">
+      <div id="info_page">
+        <h1 style="text-align: center;">Bonzo Bananas</h1>
+        <p style="text-align: center; line-height: 0px; font-size: 20px;">How to Play</p>
+        <h1>Movement</h1>
+          <p>Use <b>WASD</b> to walk around.</p>
+          <p>Use your mouse, trackpad, or the arrow keys to look around.</p>
+          <p>Press <b>ESC</b> to pause the game.</p>
+        <h1>Winning</h1>
+          <p>To win the game, you must beat every level, which there are six.</p>
+          <p>Every level, there will be bananas falling from the sky and a quota you must meet.</p>
+          <p>To beat the level, you must must meet your banana quota before the timer runs out.</p>
+          <p>If you meet the quota, you move onto the next level. If you do not, you lose.</p>
+          <br>
+        <p style="text-align: center;">Have fun! Click this button to play.</p>
+        <button type="button" onclick="document.getElementById('info_page').style.display='none'; document.getElementById('canvas').style.display='block'; ready();">Begin</button>
+      </div>
     </div>
 
-    <canvas id="canvas" style="display: none;"></canvas>
+    <div id="canvas_div">
+      <canvas id="canvas" style="display: none;"></canvas>
+    </div>
   </body>
 </html>

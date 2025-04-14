@@ -16,8 +16,11 @@ body {
 html, body {
     height: 100%;
     display: flex;
-    align-items: center;
     justify-content: center;
+}
+
+#info_page_center {
+    height: 105%;
 }
 
 #info_page {
@@ -52,7 +55,16 @@ button:hover {
     cursor: pointer;
 }
 
+#canvas_div {
+    height: 100%;
+}
+
 #canvas {
+    margin: 0;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    
     outline: 2px solid black;
 }
 
