@@ -20,6 +20,39 @@ html, body {
     justify-content: center;
 }
 
-canvas {
+#info_page {
+    width: 700px;
+    height: 90vh;
+    min-height: 600px;
+    padding: 20px;
+    
+    font-family: Arial, Helvetica, sans-serif;
+
+    background-color: #F2D16D;
+    border: 6px solid #104869;
+    border-radius: 15px;
+}
+
+button {
+    width: 125px;
+    height: 70px;
+
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+
+    font-size: medium;
+
+    background-color: #FFD782;
+    border: 2px solid #000000;
+    border-radius: 15px;
+}
+
+button:hover {
+    cursor: pointer;
+}
+
+#canvas {
     outline: 2px solid black;
 }
+

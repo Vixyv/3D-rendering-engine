@@ -609,9 +609,13 @@ function render(camera, objects) {
 }
 // Screens for the pause menu and start and end of the game
 function gameStartScreen() {
-    ctx.fillStyle = "#F2D16D";
     ctx.beginPath();
+    ctx.fillStyle = "#EBC65B";
     ctx.fillRect(0, 0, canvas_size.x, canvas_size.y);
+    ctx.beginPath();
+    ctx.fillStyle = "#F2D16D";
+    ctx.roundRect(0, 0, canvas_size.x, canvas_size.y, 200);
+    ctx.fill();
     ctx.textAlign = "center";
     ctx.font = "50px Helvetica";
     ctx.fillStyle = "#000000";
@@ -621,10 +625,14 @@ function gameStartScreen() {
     ctx.fillText("click on the screen to start", canvas_size.x / 2, canvas_size.y / 2 + 30);
 }
 function gamePauseScreen() {
-    ctx.globalAlpha = 0.5;
-    ctx.fillStyle = "rgb(131, 131, 131)";
+    ctx.globalAlpha = 0.4;
     ctx.beginPath();
+    ctx.fillStyle = "#666666";
     ctx.fillRect(0, 0, canvas_size.x, canvas_size.y);
+    ctx.beginPath();
+    ctx.fillStyle = "#DEDEDE";
+    ctx.roundRect(0, 0, canvas_size.x, canvas_size.y, 200);
+    ctx.fill();
     ctx.globalAlpha = 1;
     ctx.textAlign = "center";
     ctx.font = "50px Helvetica";
@@ -642,9 +650,13 @@ function gameEndScreen(win) {
             new Audio("sounds/game_won.mp3").play();
         }
         game_state = GameStates.Over;
-        ctx.fillStyle = "#8DF279";
+        ctx.fillStyle = "#75E35F";
         ctx.beginPath();
         ctx.fillRect(0, 0, canvas_size.x, canvas_size.y);
+        ctx.beginPath();
+        ctx.fillStyle = "#8DF279";
+        ctx.roundRect(0, 0, canvas_size.x, canvas_size.y, 200);
+        ctx.fill();
         ctx.textAlign = "center";
         ctx.font = "50px Helvetica";
         ctx.fillStyle = "#000000";
@@ -658,9 +670,13 @@ function gameEndScreen(win) {
             new Audio("sounds/game_lost.mp3").play();
         }
         game_state = GameStates.Over;
-        ctx.fillStyle = "#F27979";
+        ctx.fillStyle = "#EB6767";
         ctx.beginPath();
         ctx.fillRect(0, 0, canvas_size.x, canvas_size.y);
+        ctx.beginPath();
+        ctx.fillStyle = "#F27979";
+        ctx.roundRect(0, 0, canvas_size.x, canvas_size.y, 200);
+        ctx.fill();
         ctx.textAlign = "center";
         ctx.font = "50px Helvetica";
         ctx.fillStyle = "#000000";
@@ -960,7 +976,7 @@ function worldInit() {
     let wall_2 = new Plane(new Vector3(ground_size * 2, wall_height, 0), new Vector3(0, -90, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
     let wall_3 = new Plane(new Vector3(0, wall_height, -ground_size * 2), new Vector3(0, 180, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
     let wall_4 = new Plane(new Vector3(0, wall_height, ground_size * 2), new Vector3(0, 0, 0), new Vector3(ground_size * 2, wall_height, 1), [wall_colour]);
-    basket = new Basket(new Vector3(0, 20, 0), new Vector3(0, 0, 0), new Vector3(0.25, 0.4, 0.25), new RGB(255, 255, 20), new RGB(196, 196, 53));
+    basket = new Basket(new Vector3(0, -25, 0), new Vector3(0, 0, 0), new Vector3(0.25, 0.4, 0.25), new RGB(255, 255, 20), new RGB(196, 196, 53));
     world_objects.push(ground_1, ground_2, ground_3, ground_4, sky, sky_border, wall_1, wall_2, wall_3, wall_4, basket);
 }
 // Canvas
